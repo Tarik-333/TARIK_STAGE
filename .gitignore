@@ -1,0 +1,32 @@
+# Environnements virtuels
+backend/venv/
+backend/env/
+venv/
+env/
+
+# Variables d'environnement (Sécurité critique)
+.env
+backend/.env
+frontend/.env
+*.env
+
+# Caches Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Dépendances Node.js
+frontend/node_modules/
+node_modules/
+frontend/dist/
+dist/
+
+# Fichiers OS
+.DS_Store
+Thumbs.db
+
+# Logs et IDE
+*.log
+.vscode/
+.idea/
