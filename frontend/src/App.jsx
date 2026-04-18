@@ -4,6 +4,7 @@ import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import Tasks from './pages/Tasks';
+import Settings from './pages/Settings';
 import ProtectedRoute from './components/ProtectedRoute';
 import TopNav from './components/TopNav';
 import { useContext } from 'react';
@@ -11,7 +12,7 @@ import { AuthContext } from './context/AuthContext';
 
 function AuthenticatedLayout({ children }) {
   return (
-    <div className="min-h-screen bg-[#F8F9FA] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F8F9FA] dark:bg-gray-900 transition-colors flex flex-col font-sans">
       <TopNav />
       <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8">
         {children}
@@ -50,6 +51,14 @@ function App() {
           <ProtectedRoute>
             <AuthenticatedLayout>
               <Tasks />
+            </AuthenticatedLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/settings" element={
+          <ProtectedRoute>
+            <AuthenticatedLayout>
+              <Settings />
             </AuthenticatedLayout>
           </ProtectedRoute>
         } />
