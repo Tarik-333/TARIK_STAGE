@@ -41,6 +41,49 @@ class CommentResponse(CommentBase):
     class Config:
         from_attributes = True
 
+# --- Attachment ---
+class AttachmentResponse(BaseModel):
+    id: int
+    file_name: str
+    file_url: str
+    public_id: str
+    task_id: int
+    user_id: int
+    created_at: datetime
+    uploader: Optional[UserResponse] = None
+    class Config:
+        from_attributes = True
+
+# --- Notification ---
+class NotificationResponse(BaseModel):
+    id: int
+    user_id: int
+    message: str
+    is_read: bool
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+# --- AI Prompt ---
+class AIPrompt(BaseModel):
+    prompt: str
+
+# --- Project Message (Chat) ---
+class ProjectMessageBase(BaseModel):
+    text: str
+
+class ProjectMessageCreate(ProjectMessageBase):
+    pass
+
+class ProjectMessageResponse(ProjectMessageBase):
+    id: int
+    project_id: int
+    user_id: int
+    created_at: datetime
+    author: Optional[UserResponse] = None
+    class Config:
+        from_attributes = True
+
 # --- Task ---
 class TaskBase(BaseModel):
     nom: str
@@ -65,6 +108,7 @@ class TaskResponse(TaskBase):
     created_at: datetime
     assignee: Optional[UserResponse] = None
     comments: List[CommentResponse] = []
+    attachments: List[AttachmentResponse] = []
     class Config:
         from_attributes = True
 

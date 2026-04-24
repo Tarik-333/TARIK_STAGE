@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -31,6 +31,7 @@ class Project(Base):
 
     owner = relationship("User", back_populates="projects")
     tasks = relationship("Task", back_populates="project", cascade="all, delete-orphan")
+    messages = relationship("ProjectMessage", back_populates="project", cascade="all, delete-orphan")
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -47,6 +48,7 @@ class Task(Base):
     project = relationship("Project", back_populates="tasks")
     assignee = relationship("User", back_populates="tasks")
     comments = relationship("Comment", back_populates="task", cascade="all, delete-orphan")
+    attachments = relationship("Attachment", back_populates="task", cascade="all, delete-orphan")
 
 class Comment(Base):
     __tablename__ = "comments"
@@ -59,3 +61,40 @@ class Comment(Base):
 
     task = relationship("Task", back_populates="comments")
     author = relationship("User", back_populates="comments")
+
+class Attachment(Base):
+    __tablename__ = "attachments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    file_name = Column(String(255), nullable=False)
+    file_url = Column(String(500), nullable=False)
+    public_id = Column(String(255), nullable=False)
+    task_id = Column(Integer, ForeignKey("tasks.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    task = relationship("Task", back_populates="attachments")
+    uploader = relationship("User")
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    message = Column(String(255), nullable=False)
+    is_read = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User")
+
+class ProjectMessage(Base):
+    __tablename__ = "project_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    text = Column(Text, nullable=False)
+    project_id = Column(Integer, ForeignKey("projects.id"))
+    user_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project", back_populates="messages")
+    author = relationship("User")

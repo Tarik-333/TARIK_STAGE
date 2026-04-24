@@ -1,24 +1,77 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { LayoutDashboard, FolderKanban, CheckSquare, Settings, Bell, LogOut } from 'lucide-react';
+import { LayoutDashboard, Bell, LogOut } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const TopNav = () => {
-    const { user, logout } = useContext(AuthContext);
+    const { user, logout, api } = useContext(AuthContext);
     const location = useLocation();
+    const [notifications, setNotifications] = useState([]);
+    const [showNotifications, setShowNotifications] = useState(false);
+    const dropdownRef = useRef(null);
 
     const navItems = [
         { path: '/dashboard', label: 'Dashboard' },
         { path: '/projects', label: 'Projets' },
-        { path: '/tasks', label: 'Tâches' }, // If we want a global tasks route, else just acts as visual
+        { path: '/messagerie', label: 'Messagerie' }, 
         { path: '/settings', label: 'Paramètres' },
     ];
 
-    // Helper to get initials
+    useEffect(() => {
+        if(user) {
+            fetchNotifications();
+            // Polling simple toutes les 30 secondes
+            const interval = setInterval(fetchNotifications, 30000);
+            return () => clearInterval(interval);
+        }
+    }, [user]);
+
+    useEffect(() => {
+        // Close dropdown when clicking outside
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setShowNotifications(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const fetchNotifications = async () => {
+        try {
+            const res = await api.get('/notifications/');
+            setNotifications(res.data);
+        } catch (error) {
+            console.error("Erreur récupération notifications", error);
+        }
+    };
+
+    const markAsRead = async (id) => {
+        try {
+            await api.put(`/notifications/${id}/read`);
+            setNotifications(notifications.map(n => n.id === id ? {...n, is_read: true} : n));
+        } catch (error) {
+            console.error("Erreur", error);
+        }
+    };
+
+    const markAllAsRead = async () => {
+        try {
+            await api.put(`/notifications/read-all`);
+            setNotifications(notifications.map(n => ({...n, is_read: true})));
+            toast.success("Toutes les notifications ont été lues");
+        } catch (error) {
+            console.error("Erreur", error);
+        }
+    };
+
     const getInitials = (name) => {
         if (!name) return 'U';
         return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
     };
+
+    const unreadCount = notifications.filter(n => !n.is_read).length;
 
     return (
         <header className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 h-16 flex items-center justify-between px-6 shrink-0 sticky top-0 z-50 transition-colors">
@@ -35,14 +88,6 @@ const TopNav = () => {
                 <nav className="hidden md:flex items-center space-x-1 ml-8">
                     {navItems.map((item) => {
                         const isActive = location.pathname.startsWith(item.path);
-                        if (item.path === '/tasks') {
-                            // Dummy link for aesthetics as per mockup, or can be real global route
-                            return (
-                            <div key={item.path} className="px-4 py-1.5 text-sm font-medium text-gray-400 dark:text-gray-500 cursor-not-allowed">
-                                    {item.label}
-                                </div>
-                            );
-                        }
                         return (
                             <NavLink
                                 key={item.path}
@@ -62,9 +107,60 @@ const TopNav = () => {
 
             {/* Right actions */}
             <div className="flex items-center space-x-4">
-                <button className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-2 rounded-full border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <Bell size={18} />
-                </button>
+                
+                {/* Notifications Dropdown */}
+                <div className="relative" ref={dropdownRef}>
+                    <button 
+                        onClick={() => setShowNotifications(!showNotifications)}
+                        className="relative text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-2 rounded-full border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    >
+                        <Bell size={18} />
+                        {unreadCount > 0 && (
+                            <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-gray-800"></span>
+                        )}
+                    </button>
+
+                    {showNotifications && (
+                        <div className="absolute right-0 mt-3 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden z-50">
+                            <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-800/50">
+                                <h3 className="font-bold text-sm text-gray-800 dark:text-white">Notifications</h3>
+                                {unreadCount > 0 && (
+                                    <button onClick={markAllAsRead} className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline">
+                                        Tout marquer lu
+                                    </button>
+                                )}
+                            </div>
+                            
+                            <div className="max-h-80 overflow-y-auto custom-scrollbar">
+                                {notifications.length === 0 ? (
+                                    <div className="p-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                                        Aucune notification.
+                                    </div>
+                                ) : (
+                                    notifications.map(notif => (
+                                        <div 
+                                            key={notif.id} 
+                                            className={`p-4 border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors flex items-start space-x-3 cursor-pointer ${notif.is_read ? 'opacity-70' : 'bg-blue-50/30 dark:bg-blue-900/10'}`}
+                                            onClick={() => !notif.is_read && markAsRead(notif.id)}
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-sm ${notif.is_read ? 'text-gray-600 dark:text-gray-300' : 'text-gray-900 dark:text-white font-semibold'}`}>
+                                                    {notif.message}
+                                                </p>
+                                                <span className="text-[10px] text-gray-400 mt-1 block">
+                                                    {new Date(notif.created_at).toLocaleString('fr-FR', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'})}
+                                                </span>
+                                            </div>
+                                            {!notif.is_read && (
+                                                <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0"></div>
+                                            )}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
                 
                 <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-1"></div>
                 

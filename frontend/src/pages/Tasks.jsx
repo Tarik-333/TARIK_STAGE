@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { Plus, ArrowLeft, Clock, Trash2, MessageSquare, AlertCircle, User as UserIcon, Calendar } from 'lucide-react';
+import { Plus, ArrowLeft, Clock, Trash2, MessageSquare, AlertCircle, User as UserIcon, Calendar, Paperclip, FileText, X, LayoutGrid } from 'lucide-react';
+import toast from 'react-hot-toast';
+import ProjectChat from '../components/ProjectChat';
 
 const Tasks = () => {
     const { projectId } = useParams();
@@ -9,6 +11,7 @@ const Tasks = () => {
     const [tasks, setTasks] = useState([]);
     const [allUsers, setAllUsers] = useState([]);
     const [project, setProject] = useState(null);
+    const [activeTab, setActiveTab] = useState('kanban'); // 'kanban' | 'chat'
     
     // Filters
     const [searchTask, setSearchTask] = useState('');
@@ -22,6 +25,12 @@ const Tasks = () => {
     const [selectedTask, setSelectedTask] = useState(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [commentText, setCommentText] = useState('');
+    const [isUploadingFile, setIsUploadingFile] = useState(false);
+
+    // AI Task Generation Modal
+    const [showAIModal, setShowAIModal] = useState(false);
+    const [aiPrompt, setAiPrompt] = useState('');
+    const [isGeneratingAI, setIsGeneratingAI] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -51,8 +60,29 @@ const Tasks = () => {
             setShowCreateModal(false);
             setNewTask({ nom: '', statut: 'To Do', priority: 'Medium', deadline: '', assignee_id: '' });
             fetchData();
+            toast.success("Tâche créée avec succès !");
         } catch (error) {
             console.error(error);
+            toast.error("Erreur lors de la création.");
+        }
+    };
+
+    const handleGenerateAI = async (e) => {
+        e.preventDefault();
+        if (!aiPrompt.trim()) return;
+        
+        setIsGeneratingAI(true);
+        try {
+            const res = await api.post(`/tasks/project/${projectId}/generate-ai`, { prompt: aiPrompt });
+            setShowAIModal(false);
+            setAiPrompt('');
+            fetchData();
+            toast.success(res.data.message || "Tâches générées avec succès !");
+        } catch (error) {
+            console.error(error);
+            toast.error(error.response?.data?.detail || "Erreur de connexion avec l'IA.");
+        } finally {
+            setIsGeneratingAI(false);
         }
     };
 
@@ -64,9 +94,10 @@ const Tasks = () => {
             if(selectedTask && selectedTask.id === taskId) {
                 setSelectedTask(res.data);
             }
+            toast.success("Tâche mise à jour");
         } catch (error) {
             console.error("Erreur mise à jour", error);
-            alert("Non autorisé ou erreur serveur.");
+            toast.error("Non autorisé ou erreur serveur.");
         }
     };
 
@@ -76,8 +107,9 @@ const Tasks = () => {
                 await api.delete(`/tasks/${id}`);
                 setShowDetailModal(false);
                 fetchData();
+                toast.success("Tâche supprimée !");
             } catch (error) {
-                alert("Erreur: Vous n'êtes pas autorisé à supprimer.");
+                toast.error("Erreur: Vous n'êtes pas autorisé à supprimer.");
             }
         }
     };
@@ -94,8 +126,50 @@ const Tasks = () => {
             const refreshTask = await api.get(`/tasks/project/${projectId}`);
             const updated = refreshTask.data.find(t => t.id === selectedTask.id);
             if(updated) setSelectedTask(updated);
+            toast.success("Commentaire ajouté !");
         } catch (error) {
              console.error("Erreur commentaire", error);
+             toast.error("Erreur lors de l'ajout du commentaire");
+        }
+    };
+
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        setIsUploadingFile(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            await api.post(`/tasks/${selectedTask.id}/attachments`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            await fetchData();
+            const refreshTask = await api.get(`/tasks/project/${projectId}`);
+            const updated = refreshTask.data.find(t => t.id === selectedTask.id);
+            if(updated) setSelectedTask(updated);
+            toast.success("Fichier joint avec succès !");
+        } catch(error) {
+            console.error("Upload error", error);
+            toast.error("Erreur d'upload. Vérifiez que les clés Cloudinary sont valides !");
+        } finally {
+            setIsUploadingFile(false);
+            e.target.value = null;
+        }
+    };
+
+    const handleDeleteAttachment = async (attachmentId) => {
+        if(window.confirm("Supprimer ce fichier définitivement de Cloudinary ?")) {
+            try {
+                await api.delete(`/tasks/attachments/${attachmentId}`);
+                await fetchData();
+                const refreshTask = await api.get(`/tasks/project/${projectId}`);
+                const updated = refreshTask.data.find(t => t.id === selectedTask.id);
+                if(updated) setSelectedTask(updated);
+                toast.success("Fichier supprimé !");
+            } catch(error) {
+                console.error("Delete error", error);
+                toast.error("Non autorisé ou erreur serveur");
+            }
         }
     };
 
@@ -170,11 +244,27 @@ const Tasks = () => {
                         <ArrowLeft size={20} />
                     </Link>
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Tableau de bord Kanban</h2>
-                        <p className="text-gray-500 text-sm mt-0.5">Gérez l'avancement et assignez les rôles</p>
+                        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Détails du Projet</h2>
+                        <div className="flex space-x-6 mt-3">
+                            <button 
+                                onClick={() => setActiveTab('kanban')}
+                                className={`text-sm font-bold pb-2 border-b-2 transition-colors flex items-center space-x-1.5 ${activeTab === 'kanban' ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-500' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+                            >
+                                <LayoutGrid size={16} />
+                                <span>Tableau Kanban</span>
+                            </button>
+                            <button 
+                                onClick={() => setActiveTab('chat')}
+                                className={`text-sm font-bold pb-2 border-b-2 transition-colors flex items-center space-x-1.5 ${activeTab === 'chat' ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-500' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
+                            >
+                                <MessageSquare size={16} />
+                                <span>Messagerie Équipe</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
+                {activeTab === 'kanban' && (
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
                     <input 
                         type="text" 
                         placeholder="Rechercher une tâche..." 
@@ -195,17 +285,29 @@ const Tasks = () => {
                     </select>
 
                     {user?.role === 'admin' && (
-                        <button 
-                            onClick={() => setShowCreateModal(true)}
-                            className="flex items-center justify-center w-full sm:w-auto space-x-2 bg-black dark:bg-blue-600 hover:bg-gray-800 dark:hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors font-medium text-sm shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)]"
-                        >
-                            <Plus size={16} />
-                            <span className="hidden sm:inline">Nouvelle Tâche</span>
-                        </button>
+                        <div className="flex space-x-2 w-full sm:w-auto">
+                            <button 
+                                onClick={() => setShowAIModal(true)}
+                                className="flex items-center justify-center space-x-1.5 bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg transition-colors font-medium text-sm shadow-sm"
+                            >
+                                <span className="text-base leading-none">✨</span>
+                                <span className="hidden sm:inline">IA</span>
+                            </button>
+                            <button 
+                                onClick={() => setShowCreateModal(true)}
+                                className="flex items-center justify-center space-x-2 bg-black dark:bg-blue-600 hover:bg-gray-800 dark:hover:bg-blue-700 text-white px-3 py-2 rounded-lg transition-colors font-medium text-sm shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)]"
+                            >
+                                <Plus size={16} />
+                                <span className="hidden sm:inline">Nouvelle Tâche</span>
+                            </button>
+                        </div>
                     )}
                 </div>
+                )}
             </div>
 
+            {activeTab === 'kanban' ? (
+                <>
             {/* Kanban Board */}
             <div className="flex-1 overflow-x-auto pb-4">
                 <div className="flex gap-6 min-w-max h-full items-start">
@@ -294,6 +396,44 @@ const Tasks = () => {
                 </div>
             )}
 
+            {/* AI Assistant Modal */}
+            {showAIModal && (
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl transition-colors border border-purple-100 dark:border-purple-900/50">
+                        <div className="flex items-center space-x-3 mb-5">
+                            <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-xl">
+                                ✨
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Assistant IA Gemini</h3>
+                        </div>
+                        <form onSubmit={handleGenerateAI} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Décrivez l'objectif global de votre projet. L'IA va le découper en tâches avec des priorités.
+                                </label>
+                                <textarea 
+                                    required 
+                                    value={aiPrompt} 
+                                    onChange={e => setAiPrompt(e.target.value)} 
+                                    disabled={isGeneratingAI}
+                                    className="w-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl p-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-colors h-32 resize-none" 
+                                    placeholder="Exemple: Créer une application mobile Uber Eat avec gestion des livreurs, interface client et dashboard restaurant..." 
+                                />
+                            </div>
+                            
+                            <div className="flex space-x-3 pt-2">
+                                <button type="button" onClick={() => setShowAIModal(false)} disabled={isGeneratingAI} className="flex-1 py-2.5 px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl font-medium text-sm transition-colors disabled:opacity-50">Annuler</button>
+                                <button type="submit" disabled={isGeneratingAI || !aiPrompt.trim()} className="flex-1 py-2.5 px-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl font-medium text-sm transition-all shadow-md flex justify-center items-center disabled:opacity-70">
+                                    {isGeneratingAI ? (
+                                        <><span className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full mr-2"></span> Analyse en cours...</>
+                                    ) : 'Générer les tâches'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* Task Detail Modal */}
             {showDetailModal && selectedTask && (
                 <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -321,7 +461,48 @@ const Tasks = () => {
                             {/* Main Content (Comments) */}
                             <div className="w-2/3 border-r border-gray-100 dark:border-gray-700 flex flex-col transition-colors">
                                 <div className="p-6 flex-1 overflow-y-auto bg-white/50 dark:bg-gray-800/50 transition-colors">
-                                    <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center"><MessageSquare size={16} className="mr-2"/> Activité & Commentaires</h4>
+                                    
+                                    {/* Pièces jointes section */}
+                                    <div className="mb-8">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h4 className="text-sm font-bold text-gray-800 dark:text-white flex items-center"><Paperclip size={16} className="mr-2"/> Pièces jointes</h4>
+                                            <div>
+                                                <input type="file" id="file-upload" className="hidden" onChange={handleFileUpload} disabled={isUploadingFile} />
+                                                <label htmlFor="file-upload" className="cursor-pointer text-xs bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 shadow-sm text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center">
+                                                    {isUploadingFile ? (
+                                                        <span className="flex items-center"><span className="animate-spin w-3 h-3 border-2 border-gray-400 border-t-gray-800 dark:border-gray-500 dark:border-t-white rounded-full mr-2"></span> Envoi...</span>
+                                                    ) : '+ Joindre un fichier'}
+                                                </label>
+                                            </div>
+                                        </div>
+                                        
+                                        {selectedTask.attachments && selectedTask.attachments.length > 0 ? (
+                                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                                                {selectedTask.attachments.map(att => (
+                                                    <div key={att.id} className="group relative border border-gray-200 dark:border-gray-600 rounded-xl p-3 flex items-center bg-white dark:bg-gray-700 transition-colors hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-sm">
+                                                        <FileText size={24} className="text-blue-500 mr-3 shrink-0" />
+                                                        <div className="flex-1 min-w-0">
+                                                            <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-gray-800 dark:text-white truncate block hover:text-blue-600 dark:hover:text-blue-400">
+                                                                {att.file_name}
+                                                            </a>
+                                                            <span className="text-[10px] text-gray-500 dark:text-gray-400 block truncate">Ajouté par {att.uploader?.nom || 'Inconnu'}</span>
+                                                        </div>
+                                                        {(user?.role === 'admin' || user?.id === att.user_id) && (
+                                                            <button onClick={() => handleDeleteAttachment(att.id)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity p-1.5 bg-red-50 dark:bg-red-900/30 rounded-lg ml-2">
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center p-6 bg-gray-50/50 dark:bg-gray-700/30 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+                                                <p className="text-sm text-gray-400 dark:text-gray-500 italic">Aucune pièce jointe.</p>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center pt-2 border-t border-gray-100 dark:border-gray-700"><MessageSquare size={16} className="mr-2"/> Activité & Commentaires</h4>
                                     
                                     <div className="space-y-4">
                                         {(!selectedTask.comments || selectedTask.comments.length === 0) ? (
@@ -424,6 +605,12 @@ const Tasks = () => {
                         </div>
 
                     </div>
+                </div>
+            )}
+            </>
+            ) : (
+                <div className="flex-1 min-h-0">
+                    <ProjectChat projectId={projectId} />
                 </div>
             )}
         </div>
