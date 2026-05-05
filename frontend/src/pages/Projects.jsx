@@ -1,288 +1,342 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
-import { Plus, MoreVertical, Calendar, Clock, ArrowRight, FolderKanban, CheckCircle2, BarChart3, Search, LayoutGrid } from 'lucide-react';
+import {
+  Plus, Trash2, Calendar, ArrowRight, FolderKanban,
+  CheckCircle2, Clock, BarChart3, Search, X, Layers,
+  MoreVertical, MoreHorizontal, LayoutGrid, List, Filter, Sparkles,
+  ChevronRight, Users, Zap
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 
+const PROJECT_COLORS = [
+  { bg: 'linear-gradient(135deg, #2563eb, #1e40af)', accent: '#60a5fa', shadow: 'shadow-blue-500/20' },
+  { bg: 'linear-gradient(135deg, #14b8a6, #0d9488)', accent: '#5eead4', shadow: 'shadow-teal-500/20' },
+  { bg: 'linear-gradient(135deg, #0f172a, #1e293b)', accent: '#94a3b8', shadow: 'shadow-slate-500/20' },
+  { bg: 'linear-gradient(135deg, #4f46e5, #4338ca)', accent: '#818cf8', shadow: 'shadow-indigo-500/20' },
+];
+
 const Projects = () => {
-    const { api, user } = useContext(AuthContext);
-    const [projects, setProjects] = useState([]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [showModal, setShowModal] = useState(false);
-    const [newProject, setNewProject] = useState({ nom: '', description: '', statut: 'en cours', date_fin: '' });
+  const { api, user } = useContext(AuthContext);
+  const [projects, setProjects] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [viewMode, setViewMode] = useState('grid');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [newProject, setNewProject] = useState({ nom: '', description: '', statut: 'en cours', date_debut: '', date_fin: '' });
 
-    useEffect(() => {
-        fetchProjects();
-    }, []);
+  useEffect(() => { fetchProjects(); }, []);
 
-    const fetchProjects = async () => {
-        try {
-            const res = await api.get('/projects');
-            setProjects(res.data);
-        } catch (error) {
-            console.error("Erreur récupération projets", error);
-        }
-    };
+  const fetchProjects = async () => {
+    try {
+      const res = await api.get('/projects');
+      setProjects(Array.isArray(res.data) ? res.data : []);
+    } catch (e) { 
+        console.error(e);
+        toast.error("Erreur de connexion au système");
+    }
+  };
 
-    const handleCreateProject = async (e) => {
-        e.preventDefault();
-        try {
-            await api.post('/projects', newProject);
-            setShowModal(false);
-            setNewProject({ nom: '', description: '', statut: 'en cours', date_fin: '' });
-            fetchProjects();
-            toast.success("Projet créé avec succès !");
-        } catch (error) {
-            console.error(error);
-            toast.error("Erreur lors de la création du projet.");
-        }
-    };
+  const handleCreateProject = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/projects', newProject);
+      setShowModal(false);
+      setNewProject({ nom: '', description: '', statut: 'en cours', date_debut: '', date_fin: '' });
+      fetchProjects();
+      toast.success('Nouveau flux opérationnel activé');
+    } catch (e) { toast.error('Échec de la configuration'); }
+  };
 
-    const deleteProject = async (id) => {
-        if(window.confirm("Voulez-vous vraiment supprimer ce projet ? Tous les fichiers et tâches associés seront perdus.")) {
-            try {
-                await api.delete(`/projects/${id}`);
-                fetchProjects();
-                toast.success("Projet supprimé !");
-            } catch (error) {
-                toast.error("Erreur lors de la suppression.");
-            }
-        }
-    };
+  const deleteProject = async (id) => {
+    if (!window.confirm('Confirmer la désactivation définitive de cette unité ?')) return;
+    try {
+      await api.delete(`/projects/${id}`);
+      fetchProjects();
+      toast.success('Unité de travail supprimée');
+    } catch (e) { toast.error('Action interdite par le protocole'); }
+  };
 
-    const filteredProjects = projects.filter(p => p.nom.toLowerCase().includes(searchQuery.toLowerCase()));
+  const filteredProjects = projects.filter((p) => {
+    const matchSearch = p.nom?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchStatus = filterStatus === 'all' || p.statut === filterStatus;
+    return matchSearch && matchStatus;
+  });
 
-    return (
-        <div className="space-y-8 animate-in fade-in duration-500 pb-10">
-            {/* Header Balanced Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-r from-blue-50/50 to-indigo-50/50 dark:from-gray-800 dark:to-gray-800/80 p-7 sm:p-8 rounded-3xl shadow-sm border border-blue-100/60 dark:border-gray-700 relative overflow-hidden">
-                {/* Subtle decoration */}
-                <div className="absolute top-0 right-0 -mr-8 -mt-8 w-40 h-40 rounded-full bg-blue-500 opacity-[0.04] dark:opacity-[0.02] blur-3xl"></div>
-
-                <div className="relative z-10">
-                    <div className="flex items-center space-x-4 mb-2">
-                        <div className="p-3 bg-white dark:bg-gray-700 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-600">
-                            <LayoutGrid size={24} className="text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">Espace Projets</h2>
-                    </div>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm md:ml-[60px] font-medium">
-                        Concevez, gérez et suivez l'avancement de toutes vos initiatives.
-                    </p>
-                </div>
-                
-                <div className="relative z-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full md:w-auto">
-                    <div className="relative group">
-                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                            <Search size={18} className="text-gray-400 group-focus-within:text-blue-500 transition-colors" />
-                        </div>
-                        <input 
-                            type="text" 
-                            placeholder="Rechercher un projet..." 
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full sm:w-64 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-400 rounded-xl pl-10 pr-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all font-medium text-sm shadow-sm"
-                        />
-                    </div>
-                    
-                    {user?.role === 'admin' && (
-                        <button 
-                            onClick={() => setShowModal(true)}
-                            className="flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl transition-all duration-300 font-bold shadow-[0_4px_14px_0_rgba(37,99,235,0.2)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.3)] transform hover:-translate-y-0.5 whitespace-nowrap text-sm"
-                        >
-                            <Plus size={20} strokeWidth={2.5} />
-                            <span>Créer un Projet</span>
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            {/* Stats Overview */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 px-2">
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center space-x-4">
-                    <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                        <FolderKanban size={24} />
-                    </div>
-                    <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</p>
-                        <p className="text-xl font-bold text-gray-900 dark:text-white">{projects.length}</p>
-                    </div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center space-x-4">
-                    <div className="w-12 h-12 rounded-full bg-orange-50 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400">
-                        <Clock size={24} />
-                    </div>
-                    <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">En cours</p>
-                        <p className="text-xl font-bold text-gray-900 dark:text-white">{projects.filter(p => p.statut === 'en cours').length}</p>
-                    </div>
-                </div>
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex items-center space-x-4">
-                    <div className="w-12 h-12 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center text-green-600 dark:text-green-400">
-                        <CheckCircle2 size={24} />
-                    </div>
-                    <div>
-                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Terminés</p>
-                        <p className="text-xl font-bold text-gray-900 dark:text-white">{projects.filter(p => p.statut !== 'en cours').length}</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Projects Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-                {filteredProjects.length === 0 ? (
-                    <div className="col-span-full bg-white dark:bg-gray-800/50 py-20 px-6 text-center rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700 transition-colors">
-                        <div className="w-24 h-24 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
-                            <FolderKanban size={40} className="text-gray-400" />
-                        </div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Aucun projet trouvé</h3>
-                        <p className="text-gray-500 max-w-sm mx-auto">
-                            {searchQuery ? "Nous n'avons trouvé aucun projet correspondant à votre recherche." : "Vous n'avez pas encore de projet. Commencez par en créer un nouveau pour organiser votre travail."}
-                        </p>
-                    </div>
-                ) : (
-                    filteredProjects.map(project => {
-                        const isDone = project.statut !== 'en cours';
-                        const totalTasks = project.tasks?.length || 0;
-                        const completedTasks = project.tasks?.filter(t => t.statut === 'Done').length || 0;
-                        const progress = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
-
-                        return (
-                            <div key={project.id} className="group bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 border border-gray-100 dark:border-gray-700 flex flex-col relative overflow-hidden">
-                                {/* Top Color Bar indicating status */}
-                                <div className={`absolute top-0 left-0 w-full h-1.5 ${isDone ? 'bg-green-500' : 'bg-gradient-to-r from-blue-500 to-indigo-500'}`}></div>
-                                
-                                <div className="flex justify-between items-start mb-5 pt-2">
-                                    <h3 className="text-xl font-extrabold text-gray-900 dark:text-white truncate pr-4 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                        {project.nom}
-                                    </h3>
-                                    {user?.role === 'admin' && (
-                                        <div className="relative">
-                                            <button onClick={() => deleteProject(project.id)} className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
-                                                <MoreVertical size={18} />
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                                
-                                <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 line-clamp-2 min-h-[40px] leading-relaxed">
-                                    {project.description || <span className="italic opacity-50">Aucune description fournie pour ce projet.</span>}
-                                </p>
-
-                                {/* Progress Section */}
-                                <div className="mb-6">
-                                    <div className="flex justify-between items-end mb-2">
-                                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center">
-                                            <BarChart3 size={14} className="mr-1.5" /> Progression
-                                        </span>
-                                        <span className="text-xs font-bold text-gray-900 dark:text-white">{progress}%</span>
-                                    </div>
-                                    <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                                        <div 
-                                            className={`h-2 rounded-full transition-all duration-1000 ${isDone ? 'bg-green-500' : 'bg-blue-600'}`} 
-                                            style={{ width: `${progress}%` }}
-                                        ></div>
-                                    </div>
-                                </div>
-
-                                <div className="flex flex-col space-y-3 mb-6 font-medium text-sm mt-auto">
-                                    <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50">
-                                        <div className="flex items-center text-gray-600 dark:text-gray-300">
-                                            <Clock size={16} className="mr-2 opacity-70" />
-                                            <span>Statut</span>
-                                        </div>
-                                        {isDone ? 
-                                            <span className="text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-3 py-1 rounded-lg font-bold text-xs flex items-center"><CheckCircle2 size={12} className="mr-1"/> Terminé</span> 
-                                            : 
-                                            <span className="text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 px-3 py-1 rounded-lg font-bold text-xs flex items-center"><span className="w-1.5 h-1.5 bg-blue-500 rounded-full mr-1.5 animate-pulse"></span> En cours</span>
-                                        }
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/50">
-                                        <div className="flex items-center text-gray-600 dark:text-gray-300">
-                                            <Calendar size={16} className="mr-2 opacity-70" />
-                                            <span>Deadline</span>
-                                        </div>
-                                        <span className={`font-bold text-xs px-3 py-1 rounded-lg ${new Date(project.date_fin) < new Date() && !isDone ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400' : 'bg-white dark:bg-gray-600 border border-gray-200 dark:border-gray-500 text-gray-700 dark:text-gray-200'}`}>
-                                            {project.date_fin ? new Date(project.date_fin).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short', year: 'numeric'}) : 'Non définie'}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <Link 
-                                    to={`/projects/${project.id}/tasks`}
-                                    className="mt-auto flex items-center justify-center w-full space-x-2 py-3 rounded-xl bg-gray-900 dark:bg-blue-600 text-white font-semibold hover:bg-gray-800 dark:hover:bg-blue-500 transition-colors group-hover:shadow-lg"
-                                >
-                                    <span>Accéder au tableau</span>
-                                    <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                                </Link>
-                            </div>
-                        )
-                    })
-                )}
-            </div>
-
-            {/* Create Project Modal Premium */}
-            {showModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-3xl p-8 w-full max-w-lg shadow-2xl scale-100 transition-colors border border-gray-100 dark:border-gray-700">
-                        <div className="flex items-center space-x-3 mb-6">
-                            <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                                <FolderKanban size={24} />
-                            </div>
-                            <h3 className="text-2xl font-extrabold text-gray-900 dark:text-white">Nouveau Projet</h3>
-                        </div>
-                        
-                        <form onSubmit={handleCreateProject} className="space-y-5">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nom du projet <span className="text-red-500">*</span></label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={newProject.nom}
-                                    onChange={e => setNewProject({...newProject, nom: e.target.value})}
-                                    className="w-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700 focus:border-transparent outline-none transition-all font-medium"
-                                    placeholder="Ex: Refonte complète du site web"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Date de livraison prévue</label>
-                                <input
-                                    type="date"
-                                    value={newProject.date_fin}
-                                    onChange={e => setNewProject({...newProject, date_fin: e.target.value})}
-                                    className="w-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white rounded-xl p-3.5 focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700 focus:border-transparent outline-none transition-all font-medium"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Description</label>
-                                <textarea
-                                    value={newProject.description}
-                                    onChange={e => setNewProject({...newProject, description: e.target.value})}
-                                    className="w-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white rounded-xl p-3.5 h-32 focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-gray-700 focus:border-transparent outline-none transition-all resize-none font-medium"
-                                    placeholder="Décrivez les objectifs et le contexte de ce projet..."
-                                />
-                            </div>
-                            <div className="flex space-x-4 pt-4 mt-8 border-t border-gray-100 dark:border-gray-700">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowModal(false)}
-                                    className="flex-1 py-3.5 px-4 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl font-bold transition-colors"
-                                >
-                                    Annuler
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 py-3.5 px-4 bg-blue-600 text-white hover:bg-blue-700 rounded-xl font-bold transition-colors shadow-[0_4px_14px_0_rgba(37,99,235,0.39)] hover:shadow-[0_6px_20px_rgba(37,99,235,0.23)]"
-                                >
-                                    Créer le projet
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+  return (
+    <div className="space-y-12 animate-fade-in max-w-[1500px] mx-auto pb-20">
+      {/* ===== Premium SaaS Header ===== */}
+      <div className="flex flex-col gap-10 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+             <div className="h-3 w-3 rounded-full bg-blue-600 shadow-[0_0_12px_rgba(37,99,235,0.6)]" />
+             <span className="text-[11px] font-black uppercase tracking-[0.4em] text-blue-600/70">Orchestration Stratégique</span>
+          </div>
+          <h1 className="text-5xl lg:text-6xl font-black text-slate-900 dark:text-white tracking-tighter leading-tight" style={{fontWeight:900}}>Espaces de Travail</h1>
+          <p className="text-xl text-slate-500 font-medium max-w-3xl leading-relaxed">Centralisez vos ressources, synchronisez vos équipes et accélérez vos cycles de développement.</p>
         </div>
-    );
+
+        <div className="flex items-center gap-5">
+           <div className="hidden sm:flex bg-slate-50 dark:bg-slate-900/50 p-1.5 rounded-[1.25rem] border border-slate-100 dark:border-slate-800 shadow-inner">
+              <button onClick={() => setViewMode('grid')} className={`p-3 rounded-xl transition-all duration-300 ${viewMode === 'grid' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-soft-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                <LayoutGrid size={22} />
+              </button>
+              <button onClick={() => setViewMode('list')} className={`p-3 rounded-xl transition-all duration-300 ${viewMode === 'list' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-soft-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                <List size={22} />
+              </button>
+           </div>
+           {user?.role === 'admin' && (
+              <button onClick={() => setShowModal(true)} className="btn-primary h-16 px-10 rounded-[1.5rem] text-[16px] font-black shadow-2xl shadow-blue-600/30">
+                <Plus size={24} strokeWidth={3} />
+                <span>Nouveau Projet</span>
+              </button>
+           )}
+        </div>
+      </div>
+
+      {/* ===== Toolbar & Insight ===== */}
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-8 bg-white dark:bg-[#0f172a] p-8 rounded-[2.5rem] shadow-soft-sm border border-slate-50 dark:border-slate-800">
+         <div className="flex items-center gap-12">
+            <div className="flex flex-col">
+               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Unités Totales</span>
+               <span className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{projects.length}</span>
+            </div>
+            <div className="h-10 w-px bg-slate-100 dark:bg-slate-800" />
+            <div className="flex flex-col">
+               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Performance Flux</span>
+               <div className="flex items-center gap-2">
+                  <span className="text-3xl font-black text-blue-600 tracking-tight">{projects.filter(p => p.statut === 'en cours').length}</span>
+                  <div className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-600 text-[10px] font-black">Actifs</div>
+               </div>
+            </div>
+         </div>
+
+         <div className="flex flex-col sm:flex-row gap-4 flex-1 max-w-2xl">
+            <div className="relative group flex-1">
+               <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={20} />
+               <input 
+                 type="text" 
+                 placeholder="Rechercher une unité opérationnelle..."
+                 value={searchQuery}
+                 onChange={(e) => setSearchQuery(e.target.value)}
+                 className="input-field w-full h-14 pl-14 pr-6 bg-slate-50/50 dark:bg-[#020617] border-slate-100 dark:border-slate-800 rounded-2xl shadow-inner font-bold text-[15px]"
+               />
+            </div>
+            <div className="relative">
+              <button onClick={() => setShowFilters(!showFilters)} className={`btn-secondary h-14 px-6 rounded-2xl ${filterStatus !== 'all' ? 'border-blue-500 text-blue-600 shadow-sm' : ''}`}>
+                 <Filter size={18} />
+                 <span>Filtres</span>
+              </button>
+              {showFilters && (
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-[#0f172a] rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                  <button onClick={() => {setFilterStatus('all'); setShowFilters(false);}} className={`w-full text-left px-5 py-3 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${filterStatus === 'all' ? 'text-blue-600 bg-blue-50/50 dark:bg-blue-900/10' : 'text-slate-600 dark:text-slate-300'}`}>Tous les projets</button>
+                  <button onClick={() => {setFilterStatus('en cours'); setShowFilters(false);}} className={`w-full text-left px-5 py-3 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${filterStatus === 'en cours' ? 'text-blue-600 bg-blue-50/50 dark:bg-blue-900/10' : 'text-slate-600 dark:text-slate-300'}`}>En cours</button>
+                  <button onClick={() => {setFilterStatus('terminé'); setShowFilters(false);}} className={`w-full text-left px-5 py-3 text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${filterStatus === 'terminé' ? 'text-blue-600 bg-blue-50/50 dark:bg-blue-900/10' : 'text-slate-600 dark:text-slate-300'}`}>Terminés</button>
+                </div>
+              )}
+            </div>
+         </div>
+      </div>
+
+      {/* ===== Projects Display ===== */}
+      <div className={viewMode === 'grid' ? "grid grid-cols-1 gap-12 md:grid-cols-2 xl:grid-cols-3" : "flex flex-col gap-6"}>
+        {filteredProjects.length === 0 ? (
+          <div className="col-span-full py-48 flex flex-col items-center justify-center bg-slate-50/20 dark:bg-[#020617]/20 rounded-[4rem] border-2 border-dashed border-slate-100 dark:border-slate-800">
+             <div className="h-28 w-28 bg-white dark:bg-slate-800 rounded-[3rem] shadow-soft-lg flex items-center justify-center mb-10 border border-slate-100 dark:border-slate-700">
+                <FolderKanban className="h-12 w-12 text-slate-200 dark:text-slate-600" />
+             </div>
+             <h3 className="text-3xl font-black text-slate-800 dark:text-white tracking-tight">Système de données vide</h3>
+             <p className="mt-4 text-slate-500 font-medium text-xl text-center max-w-lg px-10">Initialisez une nouvelle unité opérationnelle pour synchroniser vos flux de travail.</p>
+          </div>
+        ) : (
+          filteredProjects.map((project, i) => {
+            const isDone = project.statut !== 'en cours';
+            const isOverdue = project.date_fin && new Date(project.date_fin) < new Date() && !isDone;
+            const totalTasks = project.tasks?.length || 0;
+            const completedTasks = project.tasks?.filter((t) => t.statut === 'Done').length || 0;
+            const progress = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+            const colorScheme = PROJECT_COLORS[i % PROJECT_COLORS.length];
+
+            return (
+              <div key={project.id} className="group relative">
+                <div className="card-premium h-full bg-white dark:bg-[#0f172a] border-slate-50 dark:border-slate-800 overflow-hidden flex flex-col transition-all duration-700 hover:shadow-soft-lg">
+                  
+                  {/* Decorative Header Bar */}
+                  <div className="h-2 w-full transition-all group-hover:h-3" style={{ background: isDone ? 'linear-gradient(90deg, #10b981, #059669)' : colorScheme.bg }} />
+
+                  <div className="p-10 flex flex-col flex-1">
+                    {/* Top: Badges & Controls */}
+                    <div className="flex items-center justify-between mb-10">
+                       <div className={`px-4 py-1.5 rounded-xl text-[10px] font-black tracking-[0.2em] border shadow-sm transition-all duration-500 ${
+                          isDone ? 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/20' : 
+                          isOverdue ? 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/20' : 
+                          'bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-900/20'
+                       }`}>
+                          {isDone ? 'FINALISÉ' : isOverdue ? 'ALERTE RETARD' : 'OPÉRATIONNEL'}
+                       </div>
+                       <div className="flex gap-2">
+                          {user?.role === 'admin' && (
+                            <button onClick={() => deleteProject(project.id)} className="p-2.5 text-slate-200 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-2xl transition-all">
+                               <Trash2 size={18} />
+                            </button>
+                          )}
+                          <button className="p-2.5 text-slate-200 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-2xl transition-all">
+                             <MoreHorizontal size={22} />
+                          </button>
+                       </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <div className="flex items-start gap-8 mb-10">
+                       <div className={`h-20 w-20 shrink-0 rounded-[1.75rem] shadow-xl flex items-center justify-center text-white font-black text-3xl transition-all duration-700 group-hover:scale-110 group-hover:rotate-6 ${colorScheme.shadow}`} style={{ background: colorScheme.bg }}>
+                          {project.nom?.charAt(0).toUpperCase()}
+                       </div>
+                       <div className="min-w-0 pt-2">
+                          <h3 className="text-3xl font-black text-slate-900 dark:text-white truncate tracking-tighter leading-[1.1] group-hover:text-blue-600 transition-colors duration-500">{project.nom}</h3>
+                          <div className="flex items-center gap-2.5 mt-3 text-slate-400 font-extrabold text-[11px] uppercase tracking-[0.15em]">
+                             <Calendar size={14} className="text-blue-500" />
+                             <span>{project.date_fin ? new Date(project.date_fin).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) : 'Flux continu'}</span>
+                          </div>
+                       </div>
+                    </div>
+
+                    <p className="text-[16px] leading-relaxed text-slate-500 dark:text-slate-400 font-medium mb-12 line-clamp-2 min-h-[48px]">
+                      {project.description || "Unité opérationnelle haute performance. Documentation stratégique en cours d'indexation."}
+                    </p>
+
+                    {/* Progress Analytics */}
+                    <div className="mt-auto space-y-6">
+                       <div>
+                          <div className="flex items-center justify-between mb-4 px-1">
+                             <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Index de Maturité</span>
+                                <Sparkles size={12} className={progress > 85 ? "text-teal-500 animate-pulse" : "text-slate-300"} />
+                             </div>
+                             <span className="text-[16px] font-black text-blue-600">{progress}%</span>
+                          </div>
+                          <div className="progress-bar-modern h-4 bg-slate-50 dark:bg-slate-800/50 rounded-full shadow-inner p-1">
+                             <div 
+                                className="progress-fill-modern h-full rounded-full transition-all duration-1000 ease-out relative group-hover:shadow-[0_0_15px_rgba(37,99,235,0.4)]"
+                                style={{ 
+                                  width: `${progress}%`, 
+                                  background: isDone ? 'linear-gradient(90deg, #10b981, #059669)' : colorScheme.bg 
+                                }}
+                             >
+                                <div className="absolute inset-0 bg-white/25 animate-shimmer" />
+                             </div>
+                          </div>
+                       </div>
+
+                       {/* Bottom: Team & Action */}
+                       <div className="flex items-center justify-between pt-10 border-t border-slate-50 dark:border-slate-800 mt-10">
+                          <div className="flex items-center gap-6">
+                             <div className="flex -space-x-3">
+                                {[1,2,3].map(i => (
+                                  <div key={i} className="w-11 h-11 rounded-[1rem] border-4 border-white dark:border-[#0f172a] bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[11px] font-black text-slate-500 shadow-soft-sm">
+                                    {String.fromCharCode(64 + i)}
+                                  </div>
+                                ))}
+                                {totalTasks > 3 && (
+                                   <div className="w-11 h-11 rounded-[1rem] border-4 border-white dark:border-[#0f172a] bg-blue-50 text-blue-600 flex items-center justify-center text-[11px] font-black shadow-soft-sm">
+                                     +{totalTasks - 3}
+                                   </div>
+                                )}
+                             </div>
+                             <div className="flex flex-col">
+                                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{totalTasks} Flux</span>
+                                <span className="text-[10px] font-bold text-slate-300 dark:text-slate-600">Opérationnels</span>
+                             </div>
+                          </div>
+
+                          <Link 
+                            to={`/projects/${project.id}/tasks`}
+                            className="flex h-14 w-14 items-center justify-center rounded-[1.25rem] bg-slate-900 dark:bg-blue-600 text-white hover:bg-blue-600 dark:hover:bg-blue-500 transition-all duration-500 shadow-xl shadow-slate-900/10 dark:shadow-blue-600/20 active:scale-90 group/btn"
+                          >
+                             <ArrowRight size={28} className="transition-transform duration-500 group-hover/btn:translate-x-1" />
+                          </Link>
+                       </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* ===== Create Modal (Refonte) ===== */}
+      {showModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+           <div className="bg-white dark:bg-[#0f172a] w-full max-w-2xl max-h-[95vh] overflow-y-auto custom-scrollbar rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300">
+              
+              <div className="p-8 border-b border-slate-50 dark:border-slate-800 flex justify-between items-start bg-slate-50/50 dark:bg-[#020617]/50">
+                 <div>
+                    <div className="h-12 w-12 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 mb-4">
+                       <FolderKanban size={24} />
+                    </div>
+                    <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">Nouveau Projet</h2>
+                    <p className="text-sm font-semibold text-slate-500 mt-1">Créez un nouveau projet pour collaborer avec votre équipe.</p>
+                 </div>
+                 <button onClick={() => setShowModal(false)} className="h-10 w-10 flex items-center justify-center rounded-2xl bg-white dark:bg-slate-800 text-slate-400 hover:text-blue-600 shadow-sm border border-slate-100 dark:border-slate-700 transition-all active:scale-95">
+                    <X size={20} />
+                 </button>
+              </div>
+
+              <form onSubmit={handleCreateProject} className="p-8 space-y-6">
+                 <div className="space-y-3">
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Nom du projet *</label>
+                    <input 
+                       type="text" required 
+                       value={newProject.nom} 
+                       onChange={e => setNewProject({...newProject, nom: e.target.value})}
+                       className="input-field" 
+                       placeholder="Ex: Refonte du site web"
+                    />
+                 </div>
+
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                       <label className="block text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Date de début</label>
+                       <input 
+                          type="date" 
+                          value={newProject.date_debut} 
+                          onChange={e => setNewProject({...newProject, date_debut: e.target.value})} 
+                          className="input-field cursor-pointer" 
+                       />
+                    </div>
+                    <div className="space-y-3">
+                       <label className="block text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Date de fin prévue</label>
+                       <input 
+                          type="date" 
+                          value={newProject.date_fin} 
+                          onChange={e => setNewProject({...newProject, date_fin: e.target.value})} 
+                          className="input-field cursor-pointer" 
+                       />
+                    </div>
+                 </div>
+
+                 <div className="space-y-3">
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Description</label>
+                    <textarea 
+                       value={newProject.description} 
+                       onChange={e => setNewProject({...newProject, description: e.target.value})}
+                       rows={4} 
+                       className="input-field resize-none" 
+                       placeholder="Décrivez les objectifs et les détails de ce projet..."
+                    />
+                 </div>
+
+                 <div className="flex flex-col sm:flex-row gap-4 pt-6">
+                    <button type="button" onClick={() => setShowModal(false)} className="btn-secondary flex-1 h-12 font-extrabold text-sm uppercase tracking-wider">Annuler</button>
+                    <button type="submit" className="btn-primary flex-1 h-12 font-extrabold text-sm uppercase tracking-wider shadow-lg shadow-blue-500/20">Créer le projet</button>
+                 </div>
+              </form>
+           </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export default Projects;

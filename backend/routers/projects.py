@@ -13,16 +13,39 @@ def get_projects(db: Session = Depends(get_db), current_user: models.User = Depe
     if current_user.role == "admin":
         projects = db.query(models.Project).all()
     else:
-        # Employé: Voir seulement les projets où il participe (ou a des tâches)
+        # Employé: Voir seulement les projets où il participe (membre) / possède / ou a des tâches
+        # Employé: Voir seulement les projets où il est membre (explicit) ou possède
         owned_projects = db.query(models.Project).filter(models.Project.user_id == current_user.id).all()
-        assigned_tasks = db.query(models.Task).filter(models.Task.assignee_id == current_user.id).all()
-        assigned_project_ids = [t.project_id for t in assigned_tasks]
-        assigned_projects = db.query(models.Project).filter(models.Project.id.in_(assigned_project_ids)).all()
+
+        member_project_ids = [
+            pm.project_id
+            for pm in db.query(models.ProjectMember.project_id)
+            .filter(models.ProjectMember.user_id == current_user.id)
+            .all()
+        ]
+        member_projects = (
+            db.query(models.Project).filter(models.Project.id.in_(member_project_ids)).all()
+            if member_project_ids
+            else []
+        )
         
-        project_dict = {p.id: p for p in owned_projects + assigned_projects}
+        project_dict = {p.id: p for p in owned_projects + member_projects}
         projects = list(project_dict.values())
         
     return projects
+
+@router.get("/{project_id}", response_model=schemas.ProjectResponse)
+def get_project(project_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    from utils.authz import user_can_access_project
+    
+    project = db.query(models.Project).filter(models.Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Projet non trouvé")
+    
+    if not user_can_access_project(db, current_user, project_id):
+        raise HTTPException(status_code=403, detail="Accès refusé à ce projet")
+        
+    return project
 
 @router.post("/", response_model=schemas.ProjectResponse, status_code=status.HTTP_201_CREATED)
 def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):

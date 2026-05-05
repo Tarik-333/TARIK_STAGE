@@ -1,26 +1,39 @@
-import React, { useState, useContext } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { AuthContext } from '../context/AuthContext';
-import { Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Mail, ArrowLeft, ShieldCheck, ArrowRight } from 'lucide-react';
 import { ValaFlowLogo } from '../components/AppLayout';
 
-const Login = () => {
+const ForgotPassword = () => {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useContext(AuthContext);
-  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setMessage('');
     setIsLoading(true);
+
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      const response = await fetch('http://localhost:8000/auth/forgot-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || 'Une erreur est survenue');
+      }
+
+      setMessage(data.message || 'Si l\'adresse email existe, un lien de réinitialisation a été envoyé.');
+      setEmail('');
     } catch (err) {
-      setError('Email ou mot de passe incorrect');
+      setError(err.message || 'Une erreur de connexion est survenue');
     } finally {
       setIsLoading(false);
     }
@@ -36,12 +49,12 @@ const Login = () => {
           
           <div className="flex flex-col items-center text-center mb-10">
             <ValaFlowLogo className="w-20 h-20 mb-6" />
-            <h1 className="text-[40px] font-black tracking-tighter" style={{fontWeight:900}}>
-               <span className="text-slate-900 dark:text-white">Vala</span><span className="text-blue-600">Flow</span>
+            <h1 className="text-[32px] font-black tracking-tighter leading-tight text-slate-900 dark:text-white mb-3">
+               Mot de passe oublié ?
             </h1>
-            <div className="flex items-center justify-center gap-2 mt-2 text-slate-500 dark:text-slate-400 font-medium text-[14px]">
+            <div className="flex items-center justify-center gap-2 text-slate-500 dark:text-slate-400 font-medium text-[14px]">
                <ShieldCheck size={16} className="text-teal-500" />
-               Espace de travail sécurisé
+               Récupération sécurisée
             </div>
           </div>
 
@@ -52,10 +65,18 @@ const Login = () => {
             </div>
           )}
 
+          {message && (
+            <div className="mb-8 flex items-center gap-3 rounded-2xl border border-green-100 bg-green-50/50 px-5 py-4 text-sm text-green-600 dark:border-green-900/20 dark:bg-green-950/20 dark:text-green-400">
+              <div className="h-2 w-2 rounded-full bg-green-500 shrink-0" />
+              {message}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
               <label htmlFor="email" className="block text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest ml-1">Adresse Email</label>
-              <div className="relative group">
+              <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-3 ml-1">Entrez l'adresse email associée à votre compte pour recevoir un lien de réinitialisation.</p>
+              <div className="relative group mt-2">
                 <Mail className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
                 <input
                   id="email"
@@ -69,25 +90,6 @@ const Login = () => {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between ml-1">
-                <label htmlFor="password" className="block text-[11px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Mot de passe</label>
-                <Link to="/forgot-password" className="text-[11px] font-black text-blue-600 hover:text-blue-700 uppercase tracking-wider transition-colors">Oublié ?</Link>
-              </div>
-              <div className="relative group">
-                <Lock className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
-                <input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="block w-full bg-[#eff6ff]/50 dark:bg-slate-900/50 border-none rounded-2xl px-5 py-4 pl-14 transition-all duration-300 outline-none font-bold text-slate-800 dark:text-white placeholder:text-slate-400 focus:bg-[#eff6ff] focus:ring-2 focus:ring-blue-500/20"
-                  placeholder="••••••••"
-                />
-              </div>
-            </div>
-
             <button
               type="submit"
               disabled={isLoading}
@@ -96,33 +98,27 @@ const Login = () => {
               {isLoading ? (
                 <div className="flex items-center gap-3">
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  Connexion...
+                  Envoi en cours...
                 </div>
               ) : (
                 <>
-                  Accéder à l'espace
+                  Envoyer le lien
                   <ArrowRight size={18} />
                 </>
               )}
             </button>
           </form>
 
-          <div className="mt-10 text-center pt-8">
-            <p className="text-[13px] text-slate-500 dark:text-slate-400 font-bold">
-              Nouveau collaborateur ?{' '}
-              <Link to="/register" className="font-black text-blue-600 hover:text-blue-700 transition-colors ml-1">
-                Demander un accès
-              </Link>
-            </p>
+          <div className="mt-8 text-center pt-6 border-t border-slate-100 dark:border-slate-800">
+            <Link to="/login" className="inline-flex items-center gap-2 text-[13px] text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 font-bold transition-colors">
+              <ArrowLeft size={16} />
+              Retour à la connexion
+            </Link>
           </div>
         </div>
-        
-        <p className="mt-12 text-center text-[10px] text-slate-400 dark:text-slate-600 uppercase tracking-[0.2em] font-extrabold opacity-70">
-          &copy; 2026 ValaFlow &bull; Systèmes de Précision
-        </p>
       </div>
     </div>
   );
 };
 
-export default Login;
+export default ForgotPassword;

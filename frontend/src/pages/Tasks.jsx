@@ -1,9 +1,18 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { Plus, ArrowLeft, Clock, Trash2, MessageSquare, AlertCircle, User as UserIcon, Calendar, Paperclip, FileText, X, LayoutGrid } from 'lucide-react';
+import { 
+    Plus, Search, LayoutGrid, Download, 
+    Trash2, Paperclip, Sparkles, Users, 
+    ChevronRight, Info, User as UserIcon, X, ArrowRight, CircleDashed,
+    MessageCircle, UserPlus, Filter, MoreVertical, Calendar, Clock,
+    Layout, CheckCircle2, AlertCircle, Layers, Activity
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import ProjectChat from '../components/ProjectChat';
+import ProjectMembers from '../components/ProjectMembers';
+import ProjectTimeline from '../components/ProjectTimeline';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 
 const Tasks = () => {
     const { projectId } = useParams();
@@ -11,43 +20,47 @@ const Tasks = () => {
     const [tasks, setTasks] = useState([]);
     const [allUsers, setAllUsers] = useState([]);
     const [project, setProject] = useState(null);
-    const [activeTab, setActiveTab] = useState('kanban'); // 'kanban' | 'chat'
+    const [activeTab, setActiveTab] = useState('kanban');
     
-    // Filters
     const [searchTask, setSearchTask] = useState('');
-    const [filterStatus, setFilterStatus] = useState('All');
+    const [filterPriority, setFilterPriority] = useState('All');
+    const [filterAssignee, setFilterAssignee] = useState('All');
     
-    // Create new task Modal
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newTask, setNewTask] = useState({ nom: '', statut: 'To Do', priority: 'Medium', deadline: '', assignee_id: '' });
 
-    // Task Detail Modal
     const [selectedTask, setSelectedTask] = useState(null);
     const [showDetailModal, setShowDetailModal] = useState(false);
     const [commentText, setCommentText] = useState('');
-    const [isUploadingFile, setIsUploadingFile] = useState(false);
 
-    // AI Task Generation Modal
     const [showAIModal, setShowAIModal] = useState(false);
     const [aiPrompt, setAiPrompt] = useState('');
     const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+    const [isExportingPDF, setIsExportingPDF] = useState(false);
 
-    useEffect(() => {
-        fetchData();
-    }, [projectId]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
+        if (!projectId) return;
         try {
-            const [tasksRes, usersRes] = await Promise.all([
+            const [tasksRes, usersRes, projectsRes] = await Promise.all([
                 api.get(`/tasks/project/${projectId}`),
-                api.get('/auth/users').catch(() => ({data: []})) // Ignore if fails
+                api.get('/auth/users').catch(() => ({data: []})),
+                api.get('/projects').catch(() => ({data: []}))
             ]);
-            setTasks(tasksRes.data);
-            setAllUsers(usersRes.data);
+            
+            setTasks(Array.isArray(tasksRes.data) ? tasksRes.data : []);
+            setAllUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+            
+            if (Array.isArray(projectsRes.data)) {
+                const currentProject = projectsRes.data.find(p => p.id === parseInt(projectId));
+                if (currentProject) setProject(currentProject);
+            }
         } catch (error) {
-            console.error("Erreur récupération données", error);
+            console.error(error);
+            toast.error("Échec de la synchronisation tactique");
         }
-    };
+    }, [api, projectId]);
+
+    useEffect(() => { fetchData(); }, [fetchData]);
 
     const handleCreateTask = async (e) => {
         e.preventDefault();
@@ -60,375 +73,424 @@ const Tasks = () => {
             setShowCreateModal(false);
             setNewTask({ nom: '', statut: 'To Do', priority: 'Medium', deadline: '', assignee_id: '' });
             fetchData();
-            toast.success("Tâche créée avec succès !");
+            toast.success("Nouveau flux initialisé");
+        } catch { toast.error("Erreur de configuration du flux"); }
+    };
+
+    const handleExportPDF = async () => {
+        try {
+            setIsExportingPDF(true);
+            const response = await api.get(`/reports/project/${projectId}/pdf`, { responseType: 'blob' });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `rapport_projet_${projectId}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            toast.success("Rapport exporté avec succès");
         } catch (error) {
-            console.error(error);
-            toast.error("Erreur lors de la création.");
+            toast.error("Erreur lors de l'exportation");
+        } finally {
+            setIsExportingPDF(false);
         }
     };
 
     const handleGenerateAI = async (e) => {
         e.preventDefault();
-        if (!aiPrompt.trim()) return;
-        
-        setIsGeneratingAI(true);
+        if (!aiPrompt) return;
         try {
-            const res = await api.post(`/tasks/project/${projectId}/generate-ai`, { prompt: aiPrompt });
+            setIsGeneratingAI(true);
+            const res = await api.post('/ai/chat', { message: aiPrompt });
+            toast.success("IA : " + res.data.response, { duration: 6000 });
             setShowAIModal(false);
             setAiPrompt('');
-            fetchData();
-            toast.success(res.data.message || "Tâches générées avec succès !");
-        } catch (error) {
-            console.error(error);
-            toast.error(error.response?.data?.detail || "Erreur de connexion avec l'IA.");
+        } catch {
+            toast.error("Erreur avec l'IA");
         } finally {
             setIsGeneratingAI(false);
         }
     };
 
-    const updateTask = async (taskId, updates) => {
+    const handleUpdateTaskDetail = async (field, value) => {
+        if (!selectedTask || user.role !== 'admin') return;
         try {
-            const res = await api.put(`/tasks/${taskId}`, updates);
-            // Update local state
-            setTasks(tasks.map(t => t.id === taskId ? res.data : t));
-            if(selectedTask && selectedTask.id === taskId) {
-                setSelectedTask(res.data);
-            }
+            const res = await api.put(`/tasks/${selectedTask.id}`, { [field]: value });
+            setSelectedTask(res.data);
+            setTasks(prev => prev.map(t => t.id === res.data.id ? res.data : t));
             toast.success("Tâche mise à jour");
-        } catch (error) {
-            console.error("Erreur mise à jour", error);
-            toast.error("Non autorisé ou erreur serveur.");
+        } catch {
+            toast.error("Erreur de mise à jour");
         }
     };
 
-    const deleteTask = async (id) => {
-        if(window.confirm("Supprimer cette tâche ?")) {
-            try {
-                await api.delete(`/tasks/${id}`);
-                setShowDetailModal(false);
-                fetchData();
-                toast.success("Tâche supprimée !");
-            } catch (error) {
-                toast.error("Erreur: Vous n'êtes pas autorisé à supprimer.");
-            }
-        }
-    };
-
-    const postComment = async (e) => {
-        e.preventDefault();
-        if(!commentText.trim() || !selectedTask) return;
+    const handleAddComment = async () => {
+        if (!commentText.trim() || !selectedTask) return;
         try {
-            await api.post(`/tasks/${selectedTask.id}/comments`, { text: commentText });
+            const res = await api.post(`/tasks/${selectedTask.id}/comments`, { text: commentText });
+            setSelectedTask(prev => ({
+                ...prev,
+                comments: [...(prev.comments || []), res.data]
+            }));
             setCommentText('');
-            // refresh tasks to get new comment
-            await fetchData();
-            // Re-select task to update comments
-            const refreshTask = await api.get(`/tasks/project/${projectId}`);
-            const updated = refreshTask.data.find(t => t.id === selectedTask.id);
-            if(updated) setSelectedTask(updated);
-            toast.success("Commentaire ajouté !");
-        } catch (error) {
-             console.error("Erreur commentaire", error);
-             toast.error("Erreur lors de l'ajout du commentaire");
+            fetchData();
+        } catch {
+            toast.error("Erreur lors de l'ajout du commentaire");
         }
     };
 
-    const handleFileUpload = async (e) => {
+    const handleUploadAttachment = async (e) => {
         const file = e.target.files[0];
-        if(!file) return;
-        setIsUploadingFile(true);
+        if (!file || !selectedTask) return;
+        const formData = new FormData();
+        formData.append('file', file);
         try {
-            const formData = new FormData();
-            formData.append('file', file);
-            await api.post(`/tasks/${selectedTask.id}/attachments`, formData, {
+            const res = await api.post(`/tasks/${selectedTask.id}/attachments`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-            await fetchData();
-            const refreshTask = await api.get(`/tasks/project/${projectId}`);
-            const updated = refreshTask.data.find(t => t.id === selectedTask.id);
-            if(updated) setSelectedTask(updated);
-            toast.success("Fichier joint avec succès !");
-        } catch(error) {
-            console.error("Upload error", error);
-            toast.error("Erreur d'upload. Vérifiez que les clés Cloudinary sont valides !");
-        } finally {
-            setIsUploadingFile(false);
-            e.target.value = null;
+            setSelectedTask(prev => ({
+                ...prev,
+                attachments: [...(prev.attachments || []), res.data]
+            }));
+            fetchData();
+            toast.success("Fichier ajouté");
+        } catch {
+            toast.error("Erreur lors de l'upload");
         }
     };
 
-    const handleDeleteAttachment = async (attachmentId) => {
-        if(window.confirm("Supprimer ce fichier définitivement de Cloudinary ?")) {
-            try {
-                await api.delete(`/tasks/attachments/${attachmentId}`);
-                await fetchData();
-                const refreshTask = await api.get(`/tasks/project/${projectId}`);
-                const updated = refreshTask.data.find(t => t.id === selectedTask.id);
-                if(updated) setSelectedTask(updated);
-                toast.success("Fichier supprimé !");
-            } catch(error) {
-                console.error("Delete error", error);
-                toast.error("Non autorisé ou erreur serveur");
-            }
+    const onDragEnd = async (result) => {
+        const { destination, source, draggableId } = result;
+        if (!destination) return;
+        if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+        
+        const newStatus = destination.droppableId;
+        const taskId = parseInt(draggableId);
+        
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, statut: newStatus } : t));
+        try {
+            await api.put(`/tasks/${taskId}`, { statut: newStatus });
+        } catch {
+            fetchData();
+            toast.error("Transition d'état corrompue");
         }
     };
 
-    // Columns grouping
     const columns = [
-        { id: 'To Do', title: 'À Faire', bg: 'bg-gray-50', dot: 'bg-gray-400' },
-        { id: 'In Progress', title: 'En Cours', bg: 'bg-blue-50', dot: 'bg-blue-500' },
-        { id: 'Blocked', title: 'Bloqué', bg: 'bg-red-50', dot: 'bg-red-500' },
-        { id: 'Done', title: 'Terminé', bg: 'bg-green-50', dot: 'bg-green-500' }
+        { id: 'To Do', title: 'Planification', dot: 'bg-slate-300', icon: Calendar },
+        { id: 'In Progress', title: 'Exécution', dot: 'bg-blue-600', icon: Activity },
+        { id: 'Blocked', title: 'Alerte Flux', dot: 'bg-rose-500', icon: AlertCircle },
+        { id: 'Done', title: 'Livrables', dot: 'bg-teal-500', icon: CheckCircle2 }
     ];
 
-    const getPriorityColor = (prio) => {
-        if(prio === 'High') return 'text-red-700 bg-red-100 border-red-200';
-        if(prio === 'Medium') return 'text-orange-700 bg-orange-100 border-orange-200';
-        return 'text-gray-700 bg-gray-100 border-gray-200';
+    const getPriorityStyle = (prio) => {
+        if(prio === 'High') return 'text-rose-600 bg-rose-50 border-rose-100 dark:bg-rose-900/30 dark:border-rose-800';
+        if(prio === 'Medium') return 'text-amber-600 bg-amber-50 border-amber-100 dark:bg-amber-900/30 dark:border-amber-800';
+        return 'text-blue-600 bg-blue-50 border-blue-100 dark:bg-blue-900/30 dark:border-blue-800';
     };
 
     const getInitials = (name) => {
         if (!name) return '?';
-        return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+        const parts = name.trim().split(/\s+/);
+        return parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.substring(0, 2).toUpperCase();
     };
 
-    const TaskCard = ({ task }) => (
-        <div 
-            onClick={() => { setSelectedTask(task); setShowDetailModal(true); }}
-            className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all cursor-pointer group flex flex-col gap-3"
-        >
-            <div className="flex justify-between items-start">
-                <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border ${getPriorityColor(task.priority)}`}>
-                    {task.priority}
-                </span>
-                {task.comments?.length > 0 && (
-                    <div className="flex items-center text-gray-400 text-xs">
-                        <MessageSquare size={12} className="mr-1" /> {task.comments.length}
-                    </div>
-                )}
-            </div>
-            
-            <h4 className={`font-semibold text-gray-800 leading-tight ${task.statut === 'Done' ? 'line-through text-gray-400' : ''}`}>
-                {task.nom}
-            </h4>
-
-            <div className="flex items-center justify-between mt-1 pt-3 border-t border-gray-50">
-                <div className="flex items-center text-xs text-gray-500 font-medium">
-                    {task.deadline ? (
-                        <div className="flex items-center">
-                            <Clock size={12} className="mr-1" />
-                            {new Date(task.deadline).toLocaleDateString('fr-FR', {day:'numeric', month:'short'})}
-                        </div>
-                    ) : <span>Pas de date</span>}
-                </div>
-                
-                {task.assignee ? (
-                    <div className="w-6 h-6 rounded-full bg-gray-900 text-white flex items-center justify-center text-[10px] font-bold" title={task.assignee.nom}>
-                        {getInitials(task.assignee.nom)}
-                    </div>
-                ) : (
-                    <div className="w-6 h-6 rounded-full bg-gray-100 border border-gray-200 text-gray-400 flex items-center justify-center" title="Non assigné">
-                        <UserIcon size={12} />
-                    </div>
-                )}
-            </div>
-        </div>
-    );
+    const filteredTasks = tasks.filter(t => {
+        const matchSearch = t.nom?.toLowerCase().includes(searchTask.toLowerCase());
+        const matchPriority = filterPriority === 'All' || t.priority === filterPriority;
+        const matchAssignee = filterAssignee === 'All' || t.assignee_id === parseInt(filterAssignee);
+        return matchSearch && matchPriority && matchAssignee;
+    });
 
     return (
-        <div className="space-y-6 h-full flex flex-col">
-            {/* Header */}
-            <div className="flex justify-between items-center pb-2">
-                <div className="flex items-center space-x-4">
-                    <Link to="/projects" className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors">
-                        <ArrowLeft size={20} />
-                    </Link>
-                    <div>
-                        <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Détails du Projet</h2>
-                        <div className="flex space-x-6 mt-3">
-                            <button 
-                                onClick={() => setActiveTab('kanban')}
-                                className={`text-sm font-bold pb-2 border-b-2 transition-colors flex items-center space-x-1.5 ${activeTab === 'kanban' ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-500' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
-                            >
-                                <LayoutGrid size={16} />
-                                <span>Tableau Kanban</span>
-                            </button>
-                            <button 
-                                onClick={() => setActiveTab('chat')}
-                                className={`text-sm font-bold pb-2 border-b-2 transition-colors flex items-center space-x-1.5 ${activeTab === 'chat' ? 'border-blue-600 text-blue-600 dark:border-blue-500 dark:text-blue-500' : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}`}
-                            >
-                                <MessageSquare size={16} />
-                                <span>Messagerie Équipe</span>
-                            </button>
+        <div className="space-y-10 animate-fade-in max-w-[1700px] mx-auto pb-20">
+            {/* ====== PREMIUM SaaS HEADER ====== */}
+            <div className="card-premium p-10 bg-white dark:bg-[#0f172a] shadow-soft-lg flex flex-col xl:flex-row xl:items-center justify-between gap-8">
+                <div className="flex flex-col gap-4 flex-1 min-w-0">
+                    <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 flex-wrap">
+                        <Link to="/projects" className="hover:text-blue-600 transition-colors shrink-0">Espaces</Link>
+                        <ChevronRight size={12} className="opacity-40 shrink-0" />
+                        <span className="text-blue-600 font-black">{project?.nom || '...'}</span>
+                    </div>
+                    <h1 className="text-3xl md:text-4xl xl:text-5xl font-black text-slate-900 dark:text-white tracking-tighter leading-tight break-words" style={{fontWeight:900}}>{project?.nom || 'Pilotage de Projet'}</h1>
+                </div>
+
+                <div className="flex overflow-x-auto custom-scrollbar items-center gap-2 bg-slate-50 dark:bg-slate-900/50 p-1.5 rounded-[1.5rem] border border-slate-100 dark:border-slate-800 shadow-inner shrink-0 max-w-full">
+                    {[
+                        { id: 'kanban', label: 'Flux Kanban', icon: LayoutGrid },
+                        { id: 'timeline', label: 'Chronologie', icon: Clock },
+                        { id: 'chat', label: 'Communication', icon: MessageCircle },
+                        { id: 'members', label: 'Ressources', icon: Users }
+                    ].map(tab => (
+                        <button 
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className={`flex shrink-0 items-center gap-3 rounded-2xl px-7 py-3 text-sm font-extrabold transition-all duration-500 ${
+                                activeTab === tab.id 
+                                    ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-soft-md scale-[1.02]' 
+                                    : 'text-slate-400 hover:text-slate-600 dark:hover:text-white'
+                            }`}
+                        >
+                            <tab.icon size={18} strokeWidth={activeTab === tab.id ? 2.5 : 2} />
+                            <span>{tab.label}</span>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* ====== MAIN OPERATIONAL AREA ====== */}
+            <div className="min-h-[70vh]">
+                {activeTab === 'kanban' && (
+                    <div className="space-y-10">
+                        {/* 🚀 MODERN ACTION BAR (GLASSMORPHISM STYLE) */}
+                        <div className="sticky top-0 z-20 flex flex-col xl:flex-row items-center justify-between gap-6 bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-6 rounded-[2.5rem] shadow-[0_4px_20px_rgb(0,0,0,0.03)] dark:shadow-[0_4px_20px_rgb(0,0,0,0.2)] border border-white/60 dark:border-slate-700/50">
+                            <div className="flex flex-col sm:flex-row items-center gap-4 w-full xl:w-auto">
+                                <div className="relative group w-full sm:w-[400px]">
+                                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" size={20} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Identifier un flux..."
+                                        value={searchTask}
+                                        onChange={(e) => setSearchTask(e.target.value)}
+                                        className="input-field w-full h-14 pl-14 pr-6 bg-slate-50/50 dark:bg-[#0f172a] border-slate-100 dark:border-slate-800 rounded-2xl shadow-inner font-bold text-[15px]"
+                                    />
+                                </div>
+                                
+                                {/* Filters */}
+                                <div className="flex bg-slate-50 dark:bg-slate-900/50 p-1 rounded-2xl border border-slate-100 dark:border-slate-800 h-14">
+                                    <select 
+                                        value={filterPriority}
+                                        onChange={(e) => setFilterPriority(e.target.value)}
+                                        className="bg-transparent border-none text-[11px] font-black uppercase tracking-widest px-4 text-slate-500 outline-none cursor-pointer hover:text-blue-600 transition-colors"
+                                    >
+                                        <option value="All">Priorité: Tout</option>
+                                        <option value="High">Haute</option>
+                                        <option value="Medium">Moyenne</option>
+                                        <option value="Low">Basse</option>
+                                    </select>
+                                    <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 self-center" />
+                                    <select 
+                                        value={filterAssignee}
+                                        onChange={(e) => setFilterAssignee(e.target.value)}
+                                        className="bg-transparent border-none text-[11px] font-black uppercase tracking-widest px-4 text-slate-500 outline-none cursor-pointer hover:text-blue-600 transition-colors"
+                                    >
+                                        <option value="All">Membre: Tout</option>
+                                        {allUsers.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-4 w-full xl:w-auto">
+                                <button onClick={() => setShowAIModal(true)} className="btn-secondary h-14 px-8 rounded-2xl border-blue-100 text-blue-600 hover:bg-blue-50 transition-all font-extrabold active:scale-95 group">
+                                    <Sparkles size={18} className="text-blue-500 group-hover:animate-pulse" />
+                                    <span>Intelligence IA</span>
+                                </button>
+                                <button onClick={handleExportPDF} disabled={isExportingPDF} className="btn-secondary h-14 px-6 rounded-2xl border-slate-100 hover:text-blue-600 active:scale-95 disabled:opacity-50">
+                                    {isExportingPDF ? <div className="h-4 w-4 rounded-full border-2 border-slate-400 border-t-blue-600 animate-spin" /> : <Download size={18} />}
+                                    <span>{isExportingPDF ? 'Export...' : 'Export'}</span>
+                                </button>
+                                <button onClick={() => setShowCreateModal(true)} className="btn-primary h-14 px-10 rounded-[1.25rem] shadow-xl shadow-blue-600/30 font-black text-[16px] active:scale-95 transition-all">
+                                    <Plus size={24} strokeWidth={3} />
+                                    <span>Nouvelle Tâche</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 📊 KANBAN BOARD REDESIGN */}
+                        <div className="overflow-x-auto custom-scrollbar pb-10">
+                            <div className="flex gap-8 min-w-[1400px]">
+                                <DragDropContext onDragEnd={onDragEnd}>
+                                    {columns.map(col => {
+                                        const colTasks = filteredTasks.filter(t => t.statut === col.id);
+                                        return (
+                                            <Droppable droppableId={col.id} key={col.id}>
+                                                {(provided, snapshot) => (
+                                                    <div
+                                                        ref={provided.innerRef}
+                                                        {...provided.droppableProps}
+                                                        className={`kanban-column w-1/4 ${snapshot.isDraggingOver ? 'bg-blue-50/40 dark:bg-blue-900/10 border-blue-200/50' : ''}`}
+                                                    >
+                                                        {/* Column Header */}
+                                                        <div className="flex justify-between items-center mb-8 px-5">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className={`h-10 w-10 rounded-xl flex items-center justify-center text-white shadow-md ${col.dot}`}>
+                                                                    <col.icon size={20} />
+                                                                </div>
+                                                                <div>
+                                                                    <h2 className="text-[12px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-[0.2em]">{col.title}</h2>
+                                                                    <p className="text-[10px] font-bold text-slate-400 mt-0.5">{colTasks.length} unités actives</p>
+                                                                </div>
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => { setNewTask({...newTask, statut: col.id}); setShowCreateModal(true); }}
+                                                                className="h-9 w-9 rounded-xl flex items-center justify-center bg-white dark:bg-slate-800 text-slate-300 hover:text-blue-600 hover:shadow-soft-sm transition-all active:scale-90"
+                                                            >
+                                                                <Plus size={18} strokeWidth={2.5} />
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Task Grid Container */}
+                                                        <div className="flex-1 space-y-6 px-1">
+                                                            {colTasks.map((t, index) => (
+                                                                <Draggable key={t.id} draggableId={t.id.toString()} index={index}>
+                                                                    {(provided, snapshot) => (
+                                                                        <div
+                                                                            ref={provided.innerRef}
+                                                                            {...provided.draggableProps}
+                                                                            {...provided.dragHandleProps}
+                                                                            onClick={() => { setSelectedTask(t); setShowDetailModal(true); }}
+                                                                            className={`kanban-task-card group ${
+                                                                                snapshot.isDragging ? 'shadow-[0_20px_50px_rgba(37,99,235,0.15)] border-blue-400 scale-[1.02] z-50' : ''
+                                                                            }`}
+                                                                        >
+                                                                            <div className="flex justify-between items-start mb-6">
+                                                                                <span className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-[0.15em] border transition-all ${getPriorityStyle(t.priority)}`}>
+                                                                                    {t.priority}
+                                                                                </span>
+                                                                                <div className="p-1 text-slate-200 group-hover:text-slate-400 transition-colors">
+                                                                                    <MoreVertical size={16} />
+                                                                                </div>
+                                                                            </div>
+                                                                            
+                                                                            <h3 className={`text-[17px] font-extrabold text-slate-900 dark:text-white tracking-tight leading-relaxed mb-8 transition-all group-hover:text-blue-600 ${
+                                                                                t.statut === 'Done' ? 'opacity-40 line-through grayscale font-bold' : ''
+                                                                            }`}>
+                                                                                {t.nom}
+                                                                            </h3>
+
+                                                                            <div className="flex items-center justify-between pt-7 border-t border-slate-50 dark:border-slate-800 mt-auto">
+                                                                                <div className="flex items-center gap-5 text-slate-300 dark:text-slate-600 text-[11px] font-extrabold uppercase tracking-widest">
+                                                                                     <div className="flex items-center gap-1.5 group/meta hover:text-blue-500 transition-colors">
+                                                                                         <MessageCircle size={15} /> 
+                                                                                         <span>{t.comments?.length || 0}</span>
+                                                                                     </div>
+                                                                                     <div className="flex items-center gap-1.5 group/meta hover:text-blue-500 transition-colors">
+                                                                                         <Paperclip size={15} /> 
+                                                                                         <span>{t.attachments?.length || 0}</span>
+                                                                                     </div>
+                                                                                </div>
+                                                                                
+                                                                                {t.assignee_id && (
+                                                                                    <div className="flex items-center gap-3">
+                                                                                       <span className="text-[10px] font-extrabold text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity uppercase tracking-tighter">Assigné</span>
+                                                                                       <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-[10px] font-black text-blue-600 shadow-inner border border-white dark:border-slate-800 group-hover:scale-110 transition-transform">
+                                                                                           {getInitials(allUsers.find(u => u.id === t.assignee_id)?.nom)}
+                                                                                       </div>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </Draggable>
+                                                            ))}
+                                                            {provided.placeholder}
+                                                            
+                                                            {colTasks.length === 0 && (
+                                                                <div className="h-40 border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-[2.5rem] flex flex-col items-center justify-center text-slate-300 dark:text-slate-700 opacity-40">
+                                                                    <CircleDashed size={32} className="mb-3 animate-shimmer" />
+                                                                    <span className="text-[11px] font-black uppercase tracking-[0.3em]">Flux Vide</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </Droppable>
+                                        );
+                                    })}
+                                </DragDropContext>
+                            </div>
                         </div>
                     </div>
-                </div>
-                {activeTab === 'kanban' && (
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-3 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
-                    <input 
-                        type="text" 
-                        placeholder="Rechercher une tâche..." 
-                        value={searchTask}
-                        onChange={(e) => setSearchTask(e.target.value)}
-                        className="w-full sm:w-48 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-black dark:focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
-                    />
-                    <select 
-                        value={filterStatus}
-                        onChange={e => setFilterStatus(e.target.value)}
-                        className="w-full sm:w-40 border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:ring-1 focus:ring-black dark:focus:ring-blue-500 outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-medium transition-colors"
-                    >
-                        <option value="All">Tous les statuts</option>
-                        <option value="To Do">À Faire</option>
-                        <option value="In Progress">En Cours</option>
-                        <option value="Blocked">Bloqué</option>
-                        <option value="Done">Terminé</option>
-                    </select>
+                )}
 
-                    {user?.role === 'admin' && (
-                        <div className="flex space-x-2 w-full sm:w-auto">
-                            <button 
-                                onClick={() => setShowAIModal(true)}
-                                className="flex items-center justify-center space-x-1.5 bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg transition-colors font-medium text-sm shadow-sm"
-                            >
-                                <span className="text-base leading-none">✨</span>
-                                <span className="hidden sm:inline">IA</span>
-                            </button>
-                            <button 
-                                onClick={() => setShowCreateModal(true)}
-                                className="flex items-center justify-center space-x-2 bg-black dark:bg-blue-600 hover:bg-gray-800 dark:hover:bg-blue-700 text-white px-3 py-2 rounded-lg transition-colors font-medium text-sm shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)]"
-                            >
-                                <Plus size={16} />
-                                <span className="hidden sm:inline">Nouvelle Tâche</span>
+                {/* Tabs shells */}
+                {activeTab === 'timeline' && <div className="animate-in fade-in duration-700 px-4"><ProjectTimeline tasks={tasks} allUsers={allUsers} /></div>}
+                {activeTab === 'chat' && <div className="card-premium h-[800px] overflow-hidden shadow-soft-lg animate-in fade-in duration-700"><ProjectChat projectId={projectId} /></div>}
+                {activeTab === 'members' && <div className="animate-in fade-in duration-700 px-4"><ProjectMembers projectId={projectId} api={api} currentUser={user} /></div>}
+            </div>
+
+            {/* Premium Create Task Modal */}
+            {showCreateModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-[#0f172a] w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300">
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800/50 flex justify-between items-center bg-slate-50/50 dark:bg-[#020617]/50">
+                            <div>
+                                <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-white">Nouvelle Tâche</h2>
+                                <p className="text-sm font-semibold text-slate-500 mt-1">Définissez les paramètres de la tâche.</p>
+                            </div>
+                            <button onClick={() => setShowCreateModal(false)} className="h-10 w-10 flex items-center justify-center rounded-2xl bg-white dark:bg-slate-800 text-slate-400 hover:text-blue-600 shadow-sm border border-slate-100 dark:border-slate-700 transition-all active:scale-95">
+                                <X size={20} />
                             </button>
                         </div>
-                    )}
-                </div>
-                )}
-            </div>
-
-            {activeTab === 'kanban' ? (
-                <>
-            {/* Kanban Board */}
-            <div className="flex-1 overflow-x-auto pb-4">
-                <div className="flex gap-6 min-w-max h-full items-start">
-                    {columns.filter(col => filterStatus === 'All' || col.id === filterStatus).map(col => {
-                        const colTasks = tasks.filter(t => 
-                            t.statut === col.id && 
-                            t.nom.toLowerCase().includes(searchTask.toLowerCase())
-                        );
-                        return (
-                            <div key={col.id} className={`w-80 rounded-2xl p-4 flex flex-col max-h-full border border-gray-100 ${col.bg}`}>
-                                <div className="flex justify-between items-center mb-4 px-1">
-                                    <h3 className="font-semibold text-gray-700 flex items-center text-sm">
-                                        <span className={`w-2 h-2 rounded-full mr-2 ${col.dot}`}></span>
-                                        {col.title}
-                                    </h3>
-                                    <span className="bg-white/60 text-gray-600 text-xs font-bold px-2 py-0.5 rounded-full border border-gray-200">
-                                        {colTasks.length}
-                                    </span>
-                                </div>
-                                <div className="space-y-3 overflow-y-auto flex-1 pr-1 custom-scrollbar">
-                                    {colTasks.length === 0 ? (
-                                        <div className="text-center py-6 text-gray-400 text-xs border border-dashed border-gray-200 rounded-xl bg-white/50">
-                                            Aucune tâche
-                                        </div>
-                                    ) : (
-                                        colTasks.map(t => <TaskCard key={t.id} task={t} />)
-                                    )}
-                                </div>
+                        
+                        <form onSubmit={handleCreateTask} className="p-8 space-y-8 bg-white dark:bg-[#0f172a]">
+                            <div className="space-y-3">
+                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Désignation</label>
+                                <input type="text" required value={newTask.nom} onChange={e => setNewTask({...newTask, nom: e.target.value})} className="input-field" placeholder="ex: Concevoir la base de données" />
                             </div>
-                        )
-                    })}
-                </div>
-            </div>
-
-            {/* Create Task Modal */}
-            {showCreateModal && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-md shadow-2xl transition-colors">
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-5 transition-colors">Créer une tâche</h3>
-                        <form onSubmit={handleCreateTask} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-1 transition-colors">Nom de la tâche</label>
-                                <input type="text" required value={newTask.nom} onChange={e => setNewTask({...newTask, nom: e.target.value})} className="w-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none transition-colors" placeholder="Ex: Intégrer l'API de paiement" />
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-1 transition-colors">Priorité</label>
-                                    <select value={newTask.priority} onChange={e => setNewTask({...newTask, priority: e.target.value})} className="w-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg p-2.5 text-sm outline-none transition-colors">
+                            <div className="grid grid-cols-2 gap-6">
+                                <div className="space-y-3">
+                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Intensité</label>
+                                    <select value={newTask.priority} onChange={e => setNewTask({...newTask, priority: e.target.value})} className="input-field cursor-pointer">
                                         <option value="Low">Basse (Low)</option>
                                         <option value="Medium">Moyenne (Medium)</option>
                                         <option value="High">Haute (High)</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-1 transition-colors">Statut</label>
-                                    <select value={newTask.statut} onChange={e => setNewTask({...newTask, statut: e.target.value})} className="w-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg p-2.5 text-sm outline-none transition-colors">
-                                        <option value="To Do">À faire</option>
-                                        <option value="In Progress">En cours</option>
-                                        <option value="Blocked">Bloqué</option>
-                                        <option value="Done">Terminé</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-1 transition-colors">Assigner à</label>
-                                    <select value={newTask.assignee_id} onChange={e => setNewTask({...newTask, assignee_id: e.target.value})} className="w-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg p-2.5 text-sm outline-none transition-colors">
+                                <div className="space-y-3">
+                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Responsable</label>
+                                    <select value={newTask.assignee_id} onChange={e => setNewTask({...newTask, assignee_id: e.target.value})} className="input-field cursor-pointer">
                                         <option value="">Non assigné</option>
                                         {allUsers.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase mb-1 transition-colors">Deadline</label>
-                                    <input type="date" value={newTask.deadline} onChange={e => setNewTask({...newTask, deadline: e.target.value})} className="w-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg p-2.5 text-sm outline-none transition-colors" />
-                                </div>
                             </div>
-
-                            <div className="flex space-x-3 pt-4 border-t border-gray-50 dark:border-gray-700 transition-colors">
-                                <button type="button" onClick={() => setShowCreateModal(false)} className="flex-1 py-2.5 px-4 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 rounded-lg font-medium text-sm transition-colors">Annuler</button>
-                                <button type="submit" className="flex-1 py-2.5 px-4 bg-blue-600 text-white hover:bg-blue-700 rounded-lg font-medium text-sm transition-colors shadow-sm">Créer la tâche</button>
+                            <div className="space-y-3">
+                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Date limite (Deadline)</label>
+                                <input type="date" value={newTask.deadline || ''} onChange={e => setNewTask({...newTask, deadline: e.target.value})} className="input-field cursor-pointer" />
+                            </div>
+                            <div className="flex gap-4 pt-6">
+                                <button type="button" onClick={() => setShowCreateModal(false)} className="btn-secondary flex-1 font-extrabold text-sm uppercase tracking-wider">Annuler</button>
+                                <button type="submit" className="btn-primary flex-1 font-extrabold text-sm uppercase tracking-wider shadow-lg shadow-blue-500/20">Créer la tâche</button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
 
-            {/* AI Assistant Modal */}
+            {/* AI Modal */}
             {showAIModal && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl transition-colors border border-purple-100 dark:border-purple-900/50">
-                        <div className="flex items-center space-x-3 mb-5">
-                            <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center text-xl">
-                                ✨
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-[#0f172a] w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 animate-in zoom-in-95 duration-300">
+                        <div className="p-8 border-b border-slate-50 dark:border-slate-800/50 flex justify-between items-center bg-blue-50/50 dark:bg-blue-900/10">
+                            <div className="flex items-center gap-4">
+                                <div className="h-10 w-10 bg-blue-100 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600">
+                                    <Sparkles size={20} className="animate-pulse" />
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">Intelligence IA</h2>
+                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mt-1">Génération Assistée</p>
+                                </div>
                             </div>
-                            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Assistant IA Gemini</h3>
+                            <button onClick={() => setShowAIModal(false)} className="text-slate-400 hover:text-blue-600 transition-all active:scale-95">
+                                <X size={20} />
+                            </button>
                         </div>
-                        <form onSubmit={handleGenerateAI} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                    Décrivez l'objectif global de votre projet. L'IA va le découper en tâches avec des priorités.
-                                </label>
+                        <form onSubmit={handleGenerateAI} className="p-8 space-y-6">
+                            <div className="space-y-3">
+                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Votre requête</label>
                                 <textarea 
                                     required 
                                     value={aiPrompt} 
                                     onChange={e => setAiPrompt(e.target.value)} 
-                                    disabled={isGeneratingAI}
-                                    className="w-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl p-3 text-sm focus:ring-2 focus:ring-purple-500 outline-none transition-colors h-32 resize-none" 
-                                    placeholder="Exemple: Créer une application mobile Uber Eat avec gestion des livreurs, interface client et dashboard restaurant..." 
+                                    className="input-field min-h-[120px] py-4 resize-none" 
+                                    placeholder="Ex: Génère 3 tâches pour la création d'un système de login..." 
                                 />
                             </div>
-                            
-                            <div className="flex space-x-3 pt-2">
-                                <button type="button" onClick={() => setShowAIModal(false)} disabled={isGeneratingAI} className="flex-1 py-2.5 px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-xl font-medium text-sm transition-colors disabled:opacity-50">Annuler</button>
-                                <button type="submit" disabled={isGeneratingAI || !aiPrompt.trim()} className="flex-1 py-2.5 px-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl font-medium text-sm transition-all shadow-md flex justify-center items-center disabled:opacity-70">
-                                    {isGeneratingAI ? (
-                                        <><span className="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full mr-2"></span> Analyse en cours...</>
-                                    ) : 'Générer les tâches'}
-                                </button>
-                            </div>
+                            <button type="submit" disabled={isGeneratingAI} className="btn-primary w-full h-14 font-extrabold text-sm uppercase tracking-wider shadow-lg shadow-blue-500/20 disabled:opacity-50">
+                                {isGeneratingAI ? <div className="h-5 w-5 rounded-full border-2 border-white/30 border-t-white animate-spin" /> : <Sparkles size={18} />}
+                                <span>{isGeneratingAI ? 'Analyse en cours...' : 'Soumettre à l\'IA'}</span>
+                            </button>
                         </form>
                     </div>
                 </div>
@@ -436,181 +498,151 @@ const Tasks = () => {
 
             {/* Task Detail Modal */}
             {showDetailModal && selectedTask && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden transition-colors">
-                        
-                        {/* Modal Header */}
-                        <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-start bg-gray-50/50 dark:bg-gray-800 transition-colors">
-                            <div className="pr-4">
-                                <div className="flex items-center space-x-3 mb-2">
-                                    <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border ${getPriorityColor(selectedTask.priority)}`}>
+                <div className="fixed inset-0 z-[100] flex justify-end bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white dark:bg-[#0f172a] w-full max-w-xl h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-500">
+                        <div className="p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start">
+                            <div>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] border ${getPriorityStyle(selectedTask.priority)}`}>
                                         {selectedTask.priority}
                                     </span>
-                                    <span className="text-xs text-gray-400 font-medium">Tâche #{selectedTask.id}</span>
+                                    <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                        {selectedTask.statut}
+                                    </span>
                                 </div>
-                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white transition-colors">{selectedTask.nom}</h3>
+                                <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white leading-tight">{selectedTask.nom}</h2>
                             </div>
-                            <button onClick={() => setShowDetailModal(false)} className="text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 p-2 rounded-full transition-colors">
-                                ✕
+                            <button onClick={() => setShowDetailModal(false)} className="h-10 w-10 flex items-center justify-center rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-400 hover:text-rose-500 transition-all active:scale-95">
+                                <X size={20} />
                             </button>
                         </div>
-
-                        {/* Modal Body */}
-                        <div className="flex flex-1 overflow-hidden">
-                            
-                            {/* Main Content (Comments) */}
-                            <div className="w-2/3 border-r border-gray-100 dark:border-gray-700 flex flex-col transition-colors">
-                                <div className="p-6 flex-1 overflow-y-auto bg-white/50 dark:bg-gray-800/50 transition-colors">
-                                    
-                                    {/* Pièces jointes section */}
-                                    <div className="mb-8">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <h4 className="text-sm font-bold text-gray-800 dark:text-white flex items-center"><Paperclip size={16} className="mr-2"/> Pièces jointes</h4>
-                                            <div>
-                                                <input type="file" id="file-upload" className="hidden" onChange={handleFileUpload} disabled={isUploadingFile} />
-                                                <label htmlFor="file-upload" className="cursor-pointer text-xs bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 shadow-sm text-gray-700 dark:text-gray-200 px-3 py-1.5 rounded-lg font-medium transition-colors flex items-center">
-                                                    {isUploadingFile ? (
-                                                        <span className="flex items-center"><span className="animate-spin w-3 h-3 border-2 border-gray-400 border-t-gray-800 dark:border-gray-500 dark:border-t-white rounded-full mr-2"></span> Envoi...</span>
-                                                    ) : '+ Joindre un fichier'}
-                                                </label>
+                        
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-8 space-y-10">
+                            {/* Infos */}
+                            <div className="grid grid-cols-2 gap-6 p-6 rounded-[2rem] bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800 shadow-inner">
+                                <div>
+                                    <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Responsable</span>
+                                    {user?.role === 'admin' ? (
+                                        <select 
+                                            value={selectedTask.assignee_id || ''} 
+                                            onChange={(e) => handleUpdateTaskDetail('assignee_id', e.target.value || null)}
+                                            className="input-field cursor-pointer w-full"
+                                        >
+                                            <option value="">Non assigné</option>
+                                            {allUsers.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
+                                        </select>
+                                    ) : (
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-[10px] font-black text-blue-600">
+                                                {getInitials(allUsers.find(u => u.id === selectedTask.assignee_id)?.nom)}
                                             </div>
+                                            <span className="font-bold text-sm text-slate-700 dark:text-slate-200">{allUsers.find(u => u.id === selectedTask.assignee_id)?.nom || 'Non assigné'}</span>
                                         </div>
-                                        
-                                        {selectedTask.attachments && selectedTask.attachments.length > 0 ? (
-                                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-                                                {selectedTask.attachments.map(att => (
-                                                    <div key={att.id} className="group relative border border-gray-200 dark:border-gray-600 rounded-xl p-3 flex items-center bg-white dark:bg-gray-700 transition-colors hover:border-blue-300 dark:hover:border-blue-500 hover:shadow-sm">
-                                                        <FileText size={24} className="text-blue-500 mr-3 shrink-0" />
-                                                        <div className="flex-1 min-w-0">
-                                                            <a href={att.file_url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-gray-800 dark:text-white truncate block hover:text-blue-600 dark:hover:text-blue-400">
-                                                                {att.file_name}
-                                                            </a>
-                                                            <span className="text-[10px] text-gray-500 dark:text-gray-400 block truncate">Ajouté par {att.uploader?.nom || 'Inconnu'}</span>
-                                                        </div>
-                                                        {(user?.role === 'admin' || user?.id === att.user_id) && (
-                                                            <button onClick={() => handleDeleteAttachment(att.id)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-opacity p-1.5 bg-red-50 dark:bg-red-900/30 rounded-lg ml-2">
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
+                                    )}
+                                </div>
+                                <div className="space-y-4">
+                                    <div>
+                                        <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Intensité (Priorité)</span>
+                                        {user?.role === 'admin' ? (
+                                            <select 
+                                                value={selectedTask.priority} 
+                                                onChange={(e) => handleUpdateTaskDetail('priority', e.target.value)}
+                                                className="input-field cursor-pointer w-full"
+                                            >
+                                                <option value="Low">Basse (Low)</option>
+                                                <option value="Medium">Moyenne (Medium)</option>
+                                                <option value="High">Haute (High)</option>
+                                            </select>
                                         ) : (
-                                            <div className="text-center p-6 bg-gray-50/50 dark:bg-gray-700/30 rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
-                                                <p className="text-sm text-gray-400 dark:text-gray-500 italic">Aucune pièce jointe.</p>
-                                            </div>
+                                            <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] border inline-block ${getPriorityStyle(selectedTask.priority)}`}>
+                                                {selectedTask.priority}
+                                            </span>
                                         )}
                                     </div>
-
-                                    <h4 className="text-sm font-bold text-gray-800 dark:text-white mb-4 flex items-center pt-2 border-t border-gray-100 dark:border-gray-700"><MessageSquare size={16} className="mr-2"/> Activité & Commentaires</h4>
-                                    
-                                    <div className="space-y-4">
-                                        {(!selectedTask.comments || selectedTask.comments.length === 0) ? (
-                                            <p className="text-sm text-gray-400 dark:text-gray-500 italic">Aucun commentaire pour l'instant.</p>
+                                    <div>
+                                        <span className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Date limite</span>
+                                        {user?.role === 'admin' ? (
+                                            <input 
+                                                type="date" 
+                                                value={selectedTask.deadline ? selectedTask.deadline.split('T')[0] : ''} 
+                                                onChange={(e) => handleUpdateTaskDetail('deadline', e.target.value || null)}
+                                                className="input-field cursor-pointer w-full"
+                                            />
                                         ) : (
-                                            selectedTask.comments.map(c => (
-                                                <div key={c.id} className="flex space-x-3">
-                                                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 flex items-center justify-center text-xs font-bold shrink-0 transition-colors">
-                                                        {getInitials(c.author?.nom)}
-                                                    </div>
-                                                    <div className="bg-gray-50 dark:bg-gray-700 border border-gray-100 dark:border-gray-600 rounded-2xl rounded-tl-none p-3 w-full transition-colors">
-                                                        <div className="flex justify-between items-baseline mb-1">
-                                                            <span className="font-semibold text-sm text-gray-900 dark:text-white">{c.author?.nom}</span>
-                                                            <span className="text-[10px] text-gray-400">{new Date(c.created_at).toLocaleDateString('fr-FR', {hour:'2-digit', minute:'2-digit'})}</span>
-                                                        </div>
-                                                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{c.text}</p>
-                                                    </div>
-                                                </div>
-                                            ))
+                                            <span className="font-bold text-sm text-slate-700 dark:text-slate-200">{selectedTask.deadline ? new Date(selectedTask.deadline).toLocaleDateString() : 'Non définie'}</span>
                                         )}
                                     </div>
                                 </div>
-                                
-                                {/* Post Comment Input */}
-                                <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors">
-                                    <form onSubmit={postComment} className="flex space-x-2">
+                            </div>
+                            
+                            {/* Attachments */}
+                            <div>
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                                    <Paperclip size={14} /> Fichiers joints
+                                </h3>
+                                <div className="space-y-3 mb-4">
+                                    {selectedTask.attachments?.map(att => (
+                                        <a key={att.id} href={att.file_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border border-slate-100 dark:border-slate-800 group">
+                                            <div className="p-2 bg-blue-100 dark:bg-blue-900/40 rounded-xl text-blue-600"><Paperclip size={16} /></div>
+                                            <div className="flex-1 overflow-hidden">
+                                                <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{att.file_name}</p>
+                                                <p className="text-[10px] text-slate-400">Ajouté par {att.uploader?.nom}</p>
+                                            </div>
+                                            <Download size={16} className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        </a>
+                                    ))}
+                                </div>
+                                <label className="h-16 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-[1.5rem] flex items-center justify-center text-slate-400 hover:border-blue-500 hover:text-blue-500 transition-colors cursor-pointer bg-slate-50/50 dark:bg-[#020617]/50 relative">
+                                    <input type="file" className="hidden" onChange={handleUploadAttachment} />
+                                    <div className="flex items-center gap-2">
+                                        <Plus size={18} />
+                                        <span className="text-[11px] font-bold uppercase tracking-widest">Ajouter un fichier</span>
+                                    </div>
+                                </label>
+                            </div>
+
+                            {/* Comments */}
+                            <div>
+                                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                                    <MessageCircle size={14} /> Commentaires
+                                </h3>
+                                <div className="space-y-4 mb-6">
+                                    {selectedTask.comments?.map(c => (
+                                        <div key={c.id} className="flex gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex-shrink-0 flex items-center justify-center text-slate-600 dark:text-slate-300 font-black text-xs border border-slate-200 dark:border-slate-700">
+                                                {getInitials(c.author?.nom)}
+                                            </div>
+                                            <div className="flex-1 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-[1.5rem] rounded-tl-none border border-slate-100 dark:border-slate-800">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="font-bold text-xs text-slate-700 dark:text-slate-200">{c.author?.nom}</span>
+                                                    <span className="text-[9px] font-bold text-slate-400 uppercase">{new Date(c.created_at).toLocaleString()}</span>
+                                                </div>
+                                                <p className="text-sm text-slate-600 dark:text-slate-400">{c.text}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="flex gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-blue-600 flex-shrink-0 flex items-center justify-center text-white font-black text-xs">
+                                        {getInitials(user?.nom)}
+                                    </div>
+                                    <div className="flex-1 flex gap-2">
                                         <input 
                                             type="text" 
                                             value={commentText}
                                             onChange={e => setCommentText(e.target.value)}
+                                            onKeyDown={e => e.key === 'Enter' && handleAddComment()}
                                             placeholder="Ajouter un commentaire..." 
-                                            className="flex-1 border border-gray-200 dark:border-gray-600 rounded-lg p-2.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+                                            className="input-field h-12 py-0 text-sm" 
                                         />
-                                        <button type="submit" disabled={!commentText.trim()} className="bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                                        <button onClick={handleAddComment} className="h-12 px-6 bg-blue-600 text-white rounded-2xl font-bold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-500/20">
                                             Envoyer
                                         </button>
-                                    </form>
-                                </div>
-                            </div>
-
-                            {/* Sidebar Options */}
-                            <div className="w-1/3 bg-gray-50/50 dark:bg-gray-800/80 p-6 space-y-5 overflow-y-auto transition-colors">
-                                <div>
-                                    <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 transition-colors">Statut</label>
-                                    <select 
-                                        value={selectedTask.statut} 
-                                        onChange={(e) => updateTask(selectedTask.id, { statut: e.target.value })}
-                                        className="w-full border-gray-200 dark:border-gray-600 rounded-lg p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-medium transition-colors"
-                                    >
-                                        <option value="To Do">À faire</option>
-                                        <option value="In Progress">En cours</option>
-                                        <option value="Blocked">Bloqué</option>
-                                        <option value="Done">Terminé</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 transition-colors">Assigné à</label>
-                                    <select 
-                                        value={selectedTask.assignee_id || ''} 
-                                        onChange={(e) => updateTask(selectedTask.id, { assignee_id: e.target.value || null })}
-                                        disabled={user?.role !== 'admin'}
-                                        className="w-full border-gray-200 dark:border-gray-600 rounded-lg p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-medium disabled:bg-gray-100 disabled:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-500 transition-colors"
-                                    >
-                                        <option value="">Non assigné</option>
-                                        {allUsers.map(u => <option key={u.id} value={u.id}>{u.nom}</option>)}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 transition-colors">Priorité</label>
-                                    <select 
-                                        value={selectedTask.priority} 
-                                        onChange={(e) => updateTask(selectedTask.id, { priority: e.target.value })}
-                                        disabled={user?.role !== 'admin'}
-                                        className="w-full border-gray-200 dark:border-gray-600 rounded-lg p-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-medium disabled:bg-gray-100 disabled:text-gray-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-500 transition-colors"
-                                    >
-                                        <option value="Low">Basse (Low)</option>
-                                        <option value="Medium">Moyenne (Medium)</option>
-                                        <option value="High">Haute (High)</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1.5 flex items-center transition-colors"><Calendar size={12} className="mr-1"/> Deadline</label>
-                                    <div className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg p-2.5 text-sm font-medium text-gray-700 dark:text-white transition-colors">
-                                        {selectedTask.deadline ? new Date(selectedTask.deadline).toLocaleDateString() : 'Aucune date'}
                                     </div>
                                 </div>
-
-                                {user?.role === 'admin' && (
-                                    <div className="pt-6 border-t border-gray-200 mt-6 mt-auto">
-                                        <button onClick={() => deleteTask(selectedTask.id)} className="flex items-center text-red-600 hover:text-red-800 text-sm font-medium transition-colors w-full justify-center py-2 hover:bg-red-50 rounded-lg">
-                                            <Trash2 size={16} className="mr-2" />
-                                            Supprimer la tâche
-                                        </button>
-                                    </div>
-                                )}
                             </div>
                         </div>
-
                     </div>
-                </div>
-            )}
-            </>
-            ) : (
-                <div className="flex-1 min-h-0">
-                    <ProjectChat projectId={projectId} />
                 </div>
             )}
         </div>

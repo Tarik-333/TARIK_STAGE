@@ -1,11 +1,173 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;450;500;600;700;800;900&display=swap');
 @import "tailwindcss";
+
+@config "../tailwind.config.js";
+
+@theme {
+  --color-vf: #2563eb;
+  --color-vf-hover: #1e40af;
+  --color-vf-soft: #eff6ff;
+  --color-vf-softer: #dbeafe;
+  --color-vf-muted: #bfdbfe;
+  --color-navy: #0f172a;
+  --shadow-soft-sm: 0 2px 8px -2px rgba(15, 23, 42, 0.05), 0 1px 4px -1px rgba(15, 23, 42, 0.03);
+  --shadow-soft-md: 0 12px 24px -6px rgba(15, 23, 42, 0.08), 0 4px 12px -3px rgba(15, 23, 42, 0.04);
+  --shadow-soft-lg: 0 25px 50px -12px rgba(15, 23, 42, 0.12), 0 8px 24px -6px rgba(15, 23, 42, 0.06);
+}
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-@layer utilities {
-  .glassmorphism {
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+:root {
+  --vf-bg: #f8fafc;
+  --vf-surface: #ffffff;
+  --vf-surface-2: #f1f5f9;
+  --vf-surface-3: #e2e8f0;
+  --vf-border: #e2e8f0;
+  --vf-border-light: #f1f5f9;
+  --vf-text: #0f172a;
+  --vf-text-2: #334155;
+  --vf-muted: #64748b;
+  --vf-muted-2: #94a3b8;
+  --vf-accent: #2563eb;
+  --vf-accent-hover: #1e40af;
+  --vf-accent-soft: #eff6ff;
+  --vf-accent-softer: #dbeafe;
+  --vf-teal: #14b8a6;
+  --vf-teal-soft: #f0fdfa;
+  --vf-sidebar: #0f172a;
+  --vf-sidebar-width: 280px;
+  --vf-sidebar-collapsed: 88px;
+
+  /* Modern Status Colors */
+  --vf-success: #10b981;
+  --vf-success-soft: #ecfdf5;
+  --vf-warning: #f59e0b;
+  --vf-warning-soft: #fffbeb;
+  --vf-danger: #ef4444;
+  --vf-danger-soft: #fef2f2;
+  --vf-info: #0ea5e9;
+  --vf-info-soft: #f0f9ff;
+}
+
+.dark {
+  --vf-bg: #020617;
+  --vf-surface: #0f172a;
+  --vf-surface-2: #1e293b;
+  --vf-surface-3: #334155;
+  --vf-border: #1e293b;
+  --vf-border-light: #0f172a;
+  --vf-text: #f8fafc;
+  --vf-text-2: #cbd5e1;
+  --vf-muted: #94a3b8;
+  --vf-muted-2: #64748b;
+  --vf-accent: #3b82f6;
+  --vf-accent-hover: #2563eb;
+  --vf-accent-soft: rgba(37, 99, 235, 0.1);
+  --vf-accent-softer: rgba(37, 99, 235, 0.15);
+  --vf-sidebar: #020617;
+}
+
+@layer base {
+  body {
+    @apply antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--vf-bg);
+    color: var(--vf-text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    letter-spacing: -0.011em;
   }
+
+  * {
+    border-color: var(--vf-border);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: -0.025em;
+    font-weight: 600;
+  }
+}
+
+@layer components {
+  /* ===== PREMIUM CARD SYSTEM ===== */
+  .card-premium {
+    @apply bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800 shadow-soft-sm transition-all duration-500 rounded-[2rem];
+  }
+  .card-premium:hover {
+    @apply shadow-soft-lg -translate-y-1.5 border-blue-500/20;
+  }
+
+  /* ===== KANBAN TASK CARD (Inlining card-premium utilities to avoid unknown utility error) ===== */
+  .kanban-task-card {
+    @apply bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800 shadow-soft-sm transition-all duration-500 rounded-[2rem];
+    @apply p-8 cursor-pointer hover:shadow-soft-md hover:-translate-y-1.5;
+  }
+  /* ===== INPUT FIX (VERTICAL CENTERING) ===== */
+  .input-field {
+    @apply block w-full bg-slate-50 dark:bg-[#020617] border border-slate-100 dark:border-slate-800 rounded-2xl px-5 py-3.5 transition-all duration-300 outline-none font-semibold text-slate-800 dark:text-white placeholder:text-slate-400;
+  }
+  .input-field:focus {
+    @apply bg-white border-blue-500/40 ring-4 ring-blue-500/5;
+  }
+}
+
+@layer utilities {
+  /* ===== SCROLLBAR ===== */
+  .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background-color: var(--vf-border); border-radius: 20px; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* ===== BUTTONS ===== */
+  .btn-primary {
+    @apply inline-flex items-center justify-center bg-blue-600 text-white font-extrabold rounded-2xl transition-all duration-300 px-6 py-3 gap-2 shadow-xl shadow-blue-500/20 cursor-pointer active:scale-95;
+  }
+  .btn-primary:hover {
+    @apply bg-blue-700 shadow-blue-500/30 -translate-y-0.5;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center bg-white dark:bg-[#0f172a] text-slate-700 dark:text-slate-200 font-bold border border-slate-100 dark:border-slate-800 rounded-2xl transition-all duration-300 px-6 py-3 gap-2 shadow-soft-sm cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800;
+  }
+
+  .btn-icon {
+    @apply flex items-center justify-center rounded-2xl bg-white dark:bg-slate-900 shadow-soft-sm border border-slate-100 dark:border-slate-800 text-slate-400 hover:text-blue-600 transition-all duration-300;
+  }
+
+
+
+  /* ===== SIDEBAR ===== */
+  .sidebar-link {
+    @apply flex items-center gap-4 px-5 py-4 rounded-2xl text-sm transition-all duration-300 font-semibold text-slate-400 hover:bg-white/5 hover:text-white;
+  }
+  .sidebar-link.active {
+    @apply bg-blue-600 text-white font-extrabold shadow-xl shadow-blue-500/20;
+  }
+
+  /* ===== SHIMMER ===== */
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
+  }
+}
+
+/* Custom Kanban styling */
+.kanban-column {
+  @apply flex flex-col min-h-[800px] rounded-[2.5rem] p-5 bg-slate-100/40 dark:bg-slate-900/40 shadow-inner border border-white/40 dark:border-slate-800/30 transition-all duration-500;
+}
+
+/* Typography Overrides */
+.tracking-premium {
+  letter-spacing: -0.02em;
+}
+.text-xs-premium {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }

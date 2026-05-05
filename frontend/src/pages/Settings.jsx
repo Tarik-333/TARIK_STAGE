@@ -1,237 +1,230 @@
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState, useEffect, useRef } from 'react';
 import { AuthContext } from '../context/AuthContext';
-import { User, Lock, LogOut, Moon, Sun, Camera, Save } from 'lucide-react';
+import { User, Lock, LogOut, Moon, Sun, Save, Shield, Bell, Palette, Camera, Upload, Trash2, ChevronRight, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+
+const AVATAR_COLORS = [
+  'bg-blue-500', 'bg-teal-500', 'bg-indigo-500', 'bg-cyan-600', 'bg-slate-700',
+];
+
+const getInitials = (name) => {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  return parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : name.substring(0, 2).toUpperCase();
+};
+
+const getAvatarColor = (name = '') => {
+  const code = name.charCodeAt(0) || 0;
+  return AVATAR_COLORS[code % AVATAR_COLORS.length];
+};
+
+const TAB_ITEMS = [
+  { id: 'profil', label: 'Identité Opérationnelle', icon: User },
+  { id: 'securite', label: 'Cryptage & Accès', icon: Shield },
+  { id: 'apparence', label: 'Interface & Design', icon: Palette },
+];
 
 const Settings = () => {
-    const { user, logout } = useContext(AuthContext);
-    const navigate = useNavigate();
-    
-    const [activeTab, setActiveTab] = useState('profil'); // 'profil' or 'securite'
+  const { user, logout } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const fileInputRef = useRef(null);
+  
+  const [activeTab, setActiveTab] = useState('profil');
+  const [profileData, setProfileData] = useState({ nom: user?.nom || '', email: user?.email || '' });
+  const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
+  const [profilePhoto, setProfilePhoto] = useState(null);
+  const [isDarkMode, setIsDarkMode] = useState(
+    () => document.documentElement.classList.contains('dark')
+  );
 
-    const [profileData, setProfileData] = useState({
-        nom: user?.nom || '',
-        email: user?.email || '',
-        photo: null
-    });
-    
-    const [passwordData, setPasswordData] = useState({
-        current: '',
-        new: '',
-        confirm: ''
-    });
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', isDarkMode);
+    localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
 
-    const [isDarkMode, setIsDarkMode] = useState(false);
+  const handlePhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfilePhoto(reader.result);
+        toast.success('Asset visuel mis à jour');
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
-    useEffect(() => {
-        // Init dark mode strictly based on HTML class or localstorage
-        const theme = localStorage.getItem('theme');
-        if (theme === 'dark' || document.documentElement.classList.contains('dark')) {
-            setIsDarkMode(true);
-            document.documentElement.classList.add('dark');
-        } else {
-            setIsDarkMode(false);
-            document.documentElement.classList.remove('dark');
-        }
-    }, []);
+  return (
+    <div className="mx-auto max-w-6xl space-y-12 animate-fade-in">
+      {/* ===== Header ===== */}
+      <div className="flex flex-col gap-3">
+        <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tighter" style={{fontWeight:900}}>Paramètres du Compte</h1>
+        <p className="text-[16px] text-slate-500 font-medium">Configuration des protocoles d'accès et de l'environnement visuel.</p>
+      </div>
 
-    const handleThemeToggle = () => {
-        const root = document.documentElement;
-        if (isDarkMode) {
-            root.classList.remove('dark');
-            localStorage.setItem('theme', 'light');
-            setIsDarkMode(false);
-        } else {
-            root.classList.add('dark');
-            localStorage.setItem('theme', 'dark');
-            setIsDarkMode(true);
-        }
-    };
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-12">
+        {/* ===== Navigation Sidebar ===== */}
+        <div className="lg:col-span-4">
+          <div className="card p-5 space-y-2 shadow-soft-sm sticky top-6 border-slate-100 dark:border-slate-800">
+            {TAB_ITEMS.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className={`flex w-full items-center gap-4 rounded-2xl px-5 py-4 text-sm transition-all duration-300 ${
+                  activeTab === id
+                    ? 'bg-blue-600 text-white shadow-xl shadow-blue-500/20 font-extrabold translate-x-1'
+                    : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white font-semibold'
+                }`}
+              >
+                <Icon size={18} className={activeTab === id ? 'text-white' : 'text-slate-400'} />
+                {label}
+              </button>
+            ))}
 
-    const handleProfileSubmit = (e) => {
-        e.preventDefault();
-        alert("Profil mis à jour avec succès ! (Simulation)");
-    };
+            <div className="h-px bg-slate-50 dark:bg-slate-800 my-6 mx-3" />
 
-    const handlePasswordSubmit = (e) => {
-        e.preventDefault();
-        if (passwordData.new !== passwordData.confirm) {
-            alert("Les mots de passe ne correspondent pas.");
-            return;
-        }
-        alert("Mot de passe modifié avec succès ! (Simulation)");
-        setPasswordData({ current: '', new: '', confirm: '' });
-    };
-
-    const handleLogout = () => {
-        logout();
-        navigate('/login');
-    };
-
-    return (
-        <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-12">
-            <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white tracking-tight">Paramètres</h1>
-                <p className="text-gray-500 dark:text-gray-400 mt-1">Gérez votre compte et vos préférences</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                
-                {/* Sidebar Navigation */}
-                <div className="col-span-1 space-y-2">
-                    <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-gray-100 dark:border-gray-700 flex flex-col space-y-1 transition-colors">
-                        <button 
-                            onClick={() => setActiveTab('profil')}
-                            className={`w-full px-4 py-2 font-medium rounded-lg flex items-center transition-colors text-left ${activeTab === 'profil' ? 'bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white'}`}
-                        >
-                            <User size={18} className={`mr-3 ${activeTab === 'profil' ? 'text-blue-600 dark:text-blue-400' : ''}`} /> Mon Profil
-                        </button>
-                        
-                        <button 
-                            onClick={() => setActiveTab('securite')}
-                            className={`w-full px-4 py-2 font-medium rounded-lg flex items-center transition-colors text-left ${activeTab === 'securite' ? 'bg-gray-50 dark:bg-gray-700/50 text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white'}`}
-                        >
-                            <Lock size={18} className={`mr-3 ${activeTab === 'securite' ? 'text-blue-600 dark:text-blue-400' : ''}`} /> Sécurité
-                        </button>
-                        
-                        <div 
-                            onClick={handleThemeToggle}
-                            className="px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:text-gray-900 dark:hover:text-white font-medium rounded-lg flex items-center justify-between cursor-pointer transition-colors"
-                        >
-                            <div className="flex items-center">
-                                {isDarkMode ? <Sun size={18} className="mr-3 text-orange-400" /> : <Moon size={18} className="mr-3 text-indigo-500" />}
-                                Apparence
-                            </div>
-                            <span className="text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-gray-600 dark:text-gray-300">
-                                {isDarkMode ? 'Clair' : 'Sombre'}
-                            </span>
-                        </div>
-                        
-                        <div className="my-2 border-t border-gray-100 dark:border-gray-700"></div>
-                        
-                        <button 
-                            onClick={handleLogout}
-                            className="w-full px-4 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium rounded-lg flex items-center cursor-pointer transition-colors text-left"
-                        >
-                            <LogOut size={18} className="mr-3" /> Déconnexion
-                        </button>
-                    </div>
-                </div>
-
-                {/* Main Content Area */}
-                <div className="col-span-1 md:col-span-2 space-y-8">
-                    
-                    {/* Profile Section */}
-                    {activeTab === 'profil' && (
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-gray-100 dark:border-gray-700 transition-colors animate-fade-in">
-                            <h2 className="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-4 mb-6">Informations Personnelles</h2>
-                            
-                            <form onSubmit={handleProfileSubmit}>
-                                <div className="mb-6 flex items-center space-x-6">
-                                    <div className="relative group cursor-pointer">
-                                        <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center text-gray-400 border-2 border-dashed border-gray-300 dark:border-gray-600 group-hover:border-blue-500 transition-colors">
-                                            {profileData.photo ? (
-                                                <img src={profileData.photo} alt="Profil" className="w-full h-full rounded-full object-cover" />
-                                            ) : (
-                                                <Camera size={24} />
-                                            )}
-                                        </div>
-                                        <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                            <span className="text-white text-xs font-medium">Modifier</span>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <h3 className="font-semibold text-gray-900 dark:text-white">Photo de profil</h3>
-                                        <p className="text-sm text-gray-400 dark:text-gray-500">JPG, GIF ou PNG. 1MB max.</p>
-                                    </div>
-                                </div>
-
-                                <div className="grid gap-5">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nom complet</label>
-                                        <input 
-                                            type="text" 
-                                            value={profileData.nom} 
-                                            onChange={e => setProfileData({...profileData, nom: e.target.value})}
-                                            className="w-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Adresse E-mail</label>
-                                        <input 
-                                            type="email" 
-                                            value={profileData.email} 
-                                            onChange={e => setProfileData({...profileData, email: e.target.value})}
-                                            className="w-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-600 text-gray-900 dark:text-white rounded-xl p-2.5 outline-none transition-all cursor-not-allowed opacity-70"
-                                            disabled
-                                        />
-                                        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">L'adresse email ne peut pas être modifiée directement.</p>
-                                    </div>
-                                </div>
-                                
-                                <div className="mt-6 flex justify-end">
-                                    <button type="submit" className="flex items-center space-x-2 bg-black dark:bg-blue-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-gray-800 dark:hover:bg-blue-700 transition-colors">
-                                        <Save size={18} />
-                                        <span>Enregistrer les modifications</span>
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    )}
-
-                    {/* Security Section */}
-                    {activeTab === 'securite' && (
-                        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-gray-100 dark:border-gray-700 transition-colors animate-fade-in">
-                            <h2 className="text-lg font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-700 pb-4 mb-6">Sécurité et Mot de passe</h2>
-                            
-                            <form onSubmit={handlePasswordSubmit} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Mot de passe actuel</label>
-                                    <input 
-                                        type="password" 
-                                        required
-                                        value={passwordData.current}
-                                        onChange={e => setPasswordData({...passwordData, current: e.target.value})}
-                                        className="w-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nouveau mot de passe</label>
-                                        <input 
-                                            type="password" 
-                                            required
-                                            value={passwordData.new}
-                                            onChange={e => setPasswordData({...passwordData, new: e.target.value})}
-                                            className="w-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirmer mot de passe</label>
-                                        <input 
-                                            type="password" 
-                                            required
-                                            value={passwordData.confirm}
-                                            onChange={e => setPasswordData({...passwordData, confirm: e.target.value})}
-                                            className="w-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-xl p-2.5 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="mt-6 flex justify-end">
-                                    <button type="submit" className="flex items-center space-x-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition-colors">
-                                        <Lock size={18} />
-                                        <span>Mettre à jour le mot de passe</span>
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    )}
-
-                </div>
-            </div>
+            <button
+              onClick={() => { logout(); navigate('/login'); }}
+              className="flex w-full items-center gap-4 rounded-2xl px-5 py-4 text-sm text-rose-500 font-extrabold transition-all hover:bg-rose-50 dark:hover:bg-rose-900/20"
+            >
+              <LogOut size={18} />
+              Terminer la session
+            </button>
+          </div>
         </div>
-    );
+
+        {/* ===== Main Content ===== */}
+        <div className="lg:col-span-8 space-y-8">
+          
+          {activeTab === 'profil' && (
+            <div className="card-premium p-10 space-y-12 bg-white dark:bg-[#0f172a] border-slate-100 dark:border-slate-800">
+               <div className="flex flex-col sm:flex-row items-center gap-10">
+                  <div className="relative group">
+                    <div className={`h-36 w-36 rounded-[2.5rem] overflow-hidden shadow-2xl flex items-center justify-center border-8 border-white dark:border-slate-800 transition-transform duration-500 group-hover:scale-105 ${!profilePhoto ? getAvatarColor(user?.nom) : ''}`}>
+                      {profilePhoto ? (
+                        <img src={profilePhoto} alt="Avatar" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-5xl font-black text-white">{getInitials(user?.nom)}</span>
+                      )}
+                    </div>
+                    <button 
+                      onClick={() => fileInputRef.current.click()}
+                      className="absolute -bottom-2 -right-2 h-12 w-12 bg-blue-600 text-white rounded-2xl shadow-xl flex items-center justify-center hover:bg-blue-700 transition-all transform hover:scale-110 active:scale-95 border-4 border-white dark:border-slate-800"
+                    >
+                      <Camera size={20} />
+                    </button>
+                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handlePhotoUpload} />
+                  </div>
+                  
+                  <div className="text-center sm:text-left">
+                    <div className="flex items-center gap-3 justify-center sm:justify-start">
+                       <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{user?.nom}</h2>
+                       <Sparkles size={18} className="text-blue-500 opacity-60" />
+                    </div>
+                    <p className="text-slate-400 font-semibold mt-1 uppercase tracking-widest text-xs">{user?.email}</p>
+                    <div className="flex flex-wrap justify-center sm:justify-start gap-3 mt-5">
+                      <span className="badge bg-blue-50 text-blue-600 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-900/30">
+                        {user?.role === 'admin' ? 'STRATÈGE' : 'OPÉRATIONNEL'}
+                      </span>
+                      <span className="badge bg-teal-50 text-teal-600 dark:bg-teal-900/30 border border-teal-100 dark:border-teal-900/30 font-black tracking-tighter">Verified_Core</span>
+                    </div>
+                  </div>
+               </div>
+
+               <div className="h-px bg-slate-50 dark:bg-slate-800" />
+
+               <form className="space-y-8">
+                  <div className="grid gap-8 sm:grid-cols-2">
+                    <div className="space-y-3">
+                       <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Nom du profil</label>
+                       <input type="text" value={profileData.nom} className="input-field py-4 bg-slate-50 dark:bg-[#020617] border-slate-100 dark:border-slate-800 focus:bg-white font-bold" readOnly />
+                    </div>
+                    <div className="space-y-3">
+                       <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Adresse système</label>
+                       <input type="email" value={profileData.email} className="input-field py-4 bg-slate-100 dark:bg-slate-900/50 border-none cursor-not-allowed opacity-60 font-bold" disabled />
+                    </div>
+                  </div>
+                  <div className="flex justify-end pt-4">
+                     <button type="button" className="btn-primary py-4 px-10 rounded-2xl font-extrabold shadow-xl shadow-blue-500/20">Mettre à jour le profil</button>
+                  </div>
+               </form>
+            </div>
+          )}
+
+          {activeTab === 'securite' && (
+            <div className="card-premium p-10 space-y-10 bg-white dark:bg-[#0f172a] border-slate-100 dark:border-slate-800">
+               <div className="flex items-center gap-5">
+                  <div className="h-14 w-14 rounded-2xl bg-rose-50 dark:bg-rose-900/20 text-rose-600 flex items-center justify-center shadow-soft-sm">
+                    <Shield size={28} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Sécurité des Accès</h2>
+                    <p className="text-sm text-slate-500 font-medium">Protection des flux et gestion des clés de sécurité.</p>
+                  </div>
+               </div>
+
+               <div className="h-px bg-slate-50 dark:bg-slate-800" />
+
+               <form className="space-y-8">
+                  <div className="space-y-3">
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Mot de passe actuel</label>
+                    <input type="password" placeholder="••••••••" className="input-field py-4 bg-slate-50 dark:bg-[#020617] border-slate-100 dark:border-slate-800 font-bold" />
+                  </div>
+                  <div className="grid gap-8 sm:grid-cols-2">
+                    <div className="space-y-3">
+                       <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Nouveau secret</label>
+                       <input type="password" placeholder="••••••••" className="input-field py-4 bg-slate-50 dark:bg-[#020617] border-slate-100 dark:border-slate-800 font-bold" />
+                    </div>
+                    <div className="space-y-3">
+                       <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Confirmation</label>
+                       <input type="password" placeholder="••••••••" className="input-field py-4 bg-slate-50 dark:bg-[#020617] border-slate-100 dark:border-slate-800 font-bold" />
+                    </div>
+                  </div>
+                  <div className="flex justify-end pt-4">
+                     <button type="button" className="btn-primary py-4 px-10 rounded-2xl font-extrabold shadow-xl shadow-blue-500/20">Sécuriser le compte</button>
+                  </div>
+               </form>
+            </div>
+          )}
+
+          {activeTab === 'apparence' && (
+            <div className="card-premium p-10 space-y-10 bg-white dark:bg-[#0f172a] border-slate-100 dark:border-slate-800">
+               <div className="flex items-center gap-5">
+                  <div className="h-14 w-14 rounded-2xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 flex items-center justify-center shadow-soft-sm">
+                    <Palette size={28} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">Expérience Visuelle</h2>
+                    <p className="text-sm text-slate-500 font-medium">Optimisation de l'interface utilisateur.</p>
+                  </div>
+               </div>
+
+               <div className="h-px bg-slate-50 dark:bg-slate-800" />
+
+               <div className="grid grid-cols-2 gap-8">
+                  <button onClick={() => setIsDarkMode(false)} className={`p-8 rounded-[2rem] border-4 transition-all duration-300 text-left space-y-4 ${!isDarkMode ? 'border-blue-600 bg-blue-50/50' : 'border-slate-50 dark:border-slate-800 hover:border-slate-200'}`}>
+                     <div className="h-24 bg-white rounded-2xl shadow-soft-md border border-slate-100" />
+                     <div>
+                        <p className="text-lg font-black text-slate-900">Mode Clair</p>
+                        <p className="text-xs text-slate-500 font-semibold uppercase tracking-widest mt-1">Light_Flux</p>
+                     </div>
+                  </button>
+                  <button onClick={() => setIsDarkMode(true)} className={`p-8 rounded-[2rem] border-4 transition-all duration-300 text-left space-y-4 ${isDarkMode ? 'border-blue-600 bg-[#020617]' : 'border-slate-50 dark:border-slate-800 hover:border-slate-200'}`}>
+                     <div className="h-24 bg-[#0f172a] rounded-2xl shadow-soft-md border border-slate-800" />
+                     <div>
+                        <p className="text-lg font-black text-white">Mode Sombre</p>
+                        <p className="text-xs text-slate-500 font-semibold uppercase tracking-widest mt-1">Dark_Flux</p>
+                     </div>
+                  </button>
+               </div>
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default Settings;

@@ -11,6 +11,7 @@ import json
 from database import get_db
 import models, schemas
 from routers.auth import get_current_user
+from utils.authz import user_can_access_project
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
@@ -22,6 +23,9 @@ cloudinary.config(
 
 @router.get("/project/{project_id}", response_model=List[schemas.TaskResponse])
 def get_tasks(project_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    if not user_can_access_project(db, current_user, project_id):
+        raise HTTPException(status_code=403, detail="Accès refusé à ce projet")
+
     query = db.query(models.Task).options(
         joinedload(models.Task.assignee), 
         joinedload(models.Task.comments).joinedload(models.Comment.author),
@@ -33,6 +37,22 @@ def get_tasks(project_id: int, db: Session = Depends(get_db), current_user: mode
         query = query.filter(models.Task.assignee_id == current_user.id)
             
     return query.order_by(models.Task.id.desc()).all()
+
+@router.get("/{task_id}", response_model=schemas.TaskResponse)
+def get_task_detail(task_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    task = db.query(models.Task).options(
+        joinedload(models.Task.assignee), 
+        joinedload(models.Task.comments).joinedload(models.Comment.author),
+        joinedload(models.Task.attachments).joinedload(models.Attachment.uploader)
+    ).filter(models.Task.id == task_id).first()
+    
+    if not task:
+        raise HTTPException(status_code=404, detail="Tâche non trouvée")
+        
+    if not user_can_access_project(db, current_user, task.project_id):
+        raise HTTPException(status_code=403, detail="Accès refusé")
+        
+    return task
 
 @router.post("/project/{project_id}", response_model=schemas.TaskResponse, status_code=status.HTTP_201_CREATED)
 def create_task(project_id: int, task: schemas.TaskCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
