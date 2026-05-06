@@ -2,11 +2,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import engine, Base
 from routers import auth, projects, tasks, notifications, ai, chat, reports, dashboard, memberships
+import models
 
 # Create the database tables
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="ProjectFlow API")
+# Create tables if they don't exist
+models.Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="ValaFlow API", version="1.0.0")
 
 # Configure CORS for React frontend
 origins = [
