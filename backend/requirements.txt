@@ -11,3 +11,4 @@ pydantic[email]
 pydantic-settings
 gunicorn
 google-genai
+reportlab
