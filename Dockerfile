@@ -8,12 +8,18 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements from backend folder
+# Copy backend requirements
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all content from backend folder to the root of the container
-COPY backend/ .
+# Copy everything from the local directory
+COPY . .
+
+# Move into the backend directory
+WORKDIR /app/backend
+
+# Set environment variable to include current directory in Python path
+ENV PYTHONPATH=/app/backend
 
 EXPOSE 7860
 
