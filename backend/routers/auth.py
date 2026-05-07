@@ -150,17 +150,23 @@ def send_reset_email(to_email: str, reset_link: str, user_name: str):
 
 @router.post("/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    # Check if user already exists
-    existing_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="L'email est déjà utilisé")
-        
-    hashed_password = get_password_hash(user.password)
-    new_user = models.User(nom=user.nom, email=user.email, password=hashed_password)
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
+    try:
+        # Check if user already exists
+        existing_user = db.query(models.User).filter(models.User.email == user.email).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="L'email est déjà utilisé")
+            
+        hashed_password = get_password_hash(user.password)
+        new_user = models.User(nom=user.nom, email=user.email, password=hashed_password)
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        print(f"SUCCESS: User {user.email} created.")
+        return new_user
+    except Exception as e:
+        print(f"CRITICAL ERROR DURING REGISTRATION: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Erreur interne: {str(e)}")
 
 @router.post("/login", response_model=schemas.Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
