@@ -23,7 +23,7 @@ cloudinary.config(
   api_secret = os.getenv('CLOUDINARY_API_SECRET')
 )
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 SECRET_KEY = os.environ.get("SECRET_KEY")
