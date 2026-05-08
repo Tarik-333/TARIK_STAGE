@@ -152,12 +152,16 @@ def send_reset_email(to_email: str, reset_link: str, user_name: str):
 @router.post("/register", response_model=schemas.UserResponse, status_code=status.HTTP_201_CREATED)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     try:
+        print(f"DEBUG: Registering user {user.email}. Password length: {len(user.password)}")
         # Check if user already exists
         existing_user = db.query(models.User).filter(models.User.email == user.email).first()
         if existing_user:
             raise HTTPException(status_code=400, detail="L'email est déjà utilisé")
             
-        hashed_password = get_password_hash(user.password)
+        # Force truncation here directly
+        safe_password = user.password[:50]
+        hashed_password = pwd_context.hash(safe_password)
+        
         new_user = models.User(nom=user.nom, email=user.email, password=hashed_password)
         db.add(new_user)
         db.commit()
