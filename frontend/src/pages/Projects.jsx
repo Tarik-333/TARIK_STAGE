@@ -34,7 +34,8 @@ const Projects = () => {
       setProjects(Array.isArray(res.data) ? res.data : []);
     } catch (e) { 
         console.error(e);
-        toast.error("Erreur de connexion au système");
+        const msg = e.response?.data?.detail || "Erreur de connexion au système";
+        toast.error(msg);
     }
   };
 
