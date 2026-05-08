@@ -10,29 +10,29 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 
 @router.get("/", response_model=List[schemas.ProjectResponse])
 def get_projects(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.role == "admin":
-        projects = db.query(models.Project).all()
-    else:
-        # Employé: Voir seulement les projets où il participe (membre) / possède / ou a des tâches
-        # Employé: Voir seulement les projets où il est membre (explicit) ou possède
-        owned_projects = db.query(models.Project).filter(models.Project.user_id == current_user.id).all()
-
-        member_project_ids = [
-            pm.project_id
-            for pm in db.query(models.ProjectMember.project_id)
-            .filter(models.ProjectMember.user_id == current_user.id)
-            .all()
-        ]
-        member_projects = (
-            db.query(models.Project).filter(models.Project.id.in_(member_project_ids)).all()
-            if member_project_ids
-            else []
-        )
-        
-        project_dict = {p.id: p for p in owned_projects + member_projects}
-        projects = list(project_dict.values())
-        
-    return projects
+    try:
+        if current_user.role == "admin":
+            projects = db.query(models.Project).all()
+        else:
+            # Employé logic
+            owned_projects = db.query(models.Project).filter(models.Project.user_id == current_user.id).all()
+            member_project_ids = [
+                pm.project_id
+                for pm in db.query(models.ProjectMember.project_id)
+                .filter(models.ProjectMember.user_id == current_user.id)
+                .all()
+            ]
+            member_projects = (
+                db.query(models.Project).filter(models.Project.id.in_(member_project_ids)).all()
+                if member_project_ids
+                else []
+            )
+            project_dict = {p.id: p for p in owned_projects + member_projects}
+            projects = list(project_dict.values())
+        return projects
+    except Exception as e:
+        print(f"ERROR FETCHING PROJECTS: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur base de données: {str(e)}")
 
 @router.get("/{project_id}", response_model=schemas.ProjectResponse)
 def get_project(project_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
