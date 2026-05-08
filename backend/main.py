@@ -1,4 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+import traceback
 from fastapi.middleware.cors import CORSMiddleware
 import models
 from database import engine, Base
@@ -34,6 +36,15 @@ app.include_router(chat.router)
 app.include_router(reports.router)
 app.include_router(dashboard.router)
 app.include_router(memberships.router)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    print(f"GLOBAL ERROR: {str(exc)}")
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Erreur serveur globale: {str(exc)}"},
+    )
 
 @app.get("/")
 def root():
