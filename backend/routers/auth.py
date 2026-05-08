@@ -160,9 +160,9 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
             
         # Force truncation here directly
         safe_password = user.password[:50]
-        hashed_password = pwd_context.hash(safe_password)
-        
-        new_user = models.User(nom=user.nom, email=user.email, password=hashed_password)
+        hashed_password = get_password_hash(user.password)
+        # On force le rôle admin pour votre prochain test
+        new_user = models.User(nom=user.nom, email=user.email, password=hashed_password, role="admin")
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
