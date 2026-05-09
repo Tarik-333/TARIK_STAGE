@@ -68,6 +68,9 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     @apply antialiased;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -93,6 +96,7 @@
   /* ===== PREMIUM CARD SYSTEM ===== */
   .card-premium {
     @apply bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800 shadow-soft-sm transition-all duration-500 rounded-[2rem];
+    will-change: transform, box-shadow;
   }
   .card-premium:hover {
     @apply shadow-soft-lg -translate-y-1.5 border-blue-500/20;
@@ -102,6 +106,7 @@
   .kanban-task-card {
     @apply bg-white dark:bg-[#0f172a] border border-slate-100 dark:border-slate-800 shadow-soft-sm transition-all duration-500 rounded-[2rem];
     @apply p-8 cursor-pointer hover:shadow-soft-md hover:-translate-y-1.5;
+    will-change: transform, box-shadow;
   }
   /* ===== INPUT FIX (VERTICAL CENTERING) ===== */
   .input-field {
@@ -159,6 +164,8 @@
 /* Custom Kanban styling */
 .kanban-column {
   @apply flex flex-col min-h-[800px] rounded-[2.5rem] p-5 bg-slate-100/40 dark:bg-slate-900/40 shadow-inner border border-white/40 dark:border-slate-800/30 transition-all duration-500;
+  content-visibility: auto;
+  contain-intrinsic-size: 800px;
 }
 
 /* Typography Overrides */

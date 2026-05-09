@@ -1,21 +1,36 @@
+import React, { Suspense, lazy, useContext, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import Dashboard from './pages/Dashboard';
-import Projects from './pages/Projects';
-import Tasks from './pages/Tasks';
-import Settings from './pages/Settings';
-import Messagerie from './pages/Messagerie';
-import Users from './pages/Users';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './components/AppLayout';
 import TopNavLayout from './components/TopNavLayout';
 import Chatbot from './components/Chatbot';
-import { useContext, useState } from 'react';
 import { AuthContext } from './context/AuthContext';
 import { Toaster } from 'react-hot-toast';
+
+// Lazy loading the pages
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Projects = lazy(() => import('./pages/Projects'));
+const Tasks = lazy(() => import('./pages/Tasks'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Messagerie = lazy(() => import('./pages/Messagerie'));
+const Users = lazy(() => import('./pages/Users'));
+
+const PageLoader = () => (
+  <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] dark:bg-[#020617]">
+    <div className="flex flex-col items-center gap-6">
+      <div className="relative flex h-16 w-16 items-center justify-center">
+        <div className="absolute inset-0 rounded-full border-4 border-blue-100 dark:border-slate-800 border-t-blue-600 dark:border-t-blue-500 animate-spin"></div>
+        <div className="h-6 w-6 rounded-full bg-blue-600 dark:bg-blue-500 animate-pulse"></div>
+      </div>
+      <p className="text-xs font-black uppercase tracking-[0.3em] text-slate-400">Chargement de l'espace...</p>
+    </div>
+  </div>
+);
+
 import { Settings as SettingsIcon } from 'lucide-react';
 
 function App() {
@@ -39,8 +54,9 @@ function App() {
       
       {/* Layout Switcher (Temporary for demonstration/choice) */}
 
-      <Routes>
-        <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
         <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <Register />} />
         <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" /> : <ForgotPassword />} />
         <Route path="/reset-password" element={user ? <Navigate to="/dashboard" /> : <ResetPassword />} />
@@ -52,9 +68,10 @@ function App() {
         <Route path="/messagerie" element={<ProtectedRoute><Layout toggleLayout={() => setLayoutType(layoutType === 'A' ? 'B' : 'A')}><Messagerie /></Layout></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute adminOnly><Layout toggleLayout={() => setLayoutType(layoutType === 'A' ? 'B' : 'A')}><Users /></Layout></ProtectedRoute>} />
         
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Suspense>
     </Router>
   )
 }
