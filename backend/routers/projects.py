@@ -8,7 +8,7 @@ from routers.auth import get_current_user
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
-@router.get("/", response_model=List[schemas.ProjectResponse])
+@router.get("", response_model=List[schemas.ProjectResponse])
 def get_projects(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     try:
         if current_user.role == "admin":
@@ -47,7 +47,7 @@ def get_project(project_id: int, db: Session = Depends(get_db), current_user: mo
         
     return project
 
-@router.post("/", response_model=schemas.ProjectResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=schemas.ProjectResponse, status_code=status.HTTP_201_CREATED)
 def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Seul un admin peut créer un projet")

@@ -8,7 +8,7 @@ from routers.auth import get_current_user
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
-@router.get("/", response_model=List[schemas.NotificationResponse])
+@router.get("", response_model=List[schemas.NotificationResponse])
 def get_notifications(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return db.query(models.Notification).filter(models.Notification.user_id == current_user.id).order_by(models.Notification.created_at.desc()).all()
 
