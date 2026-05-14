@@ -101,10 +101,14 @@ const Tasks = () => {
         if (!aiPrompt) return;
         try {
             setIsGeneratingAI(true);
-            const res = await api.post('/ai/chat', { message: aiPrompt });
+            const res = await api.post('/ai/chat', { 
+                message: aiPrompt, 
+                project_id: projectId ? parseInt(projectId) : null 
+            });
             toast.success("IA : " + res.data.response, { duration: 6000 });
             setShowAIModal(false);
             setAiPrompt('');
+            fetchData(); // Actualiser les tâches après génération
         } catch {
             toast.error("Erreur avec l'IA");
         } finally {

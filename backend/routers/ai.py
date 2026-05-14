@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 import os
 from google import genai
 from pydantic import BaseModel
+import json
+import re
 
 from database import get_db
 import models
@@ -13,6 +15,7 @@ router = APIRouter(prefix="/ai", tags=["AI Chatbot"])
 
 class ChatMessage(BaseModel):
     message: str
+    project_id: int | None = None
 
 @router.post("/chat")
 def chat_with_ai(chat: ChatMessage, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
@@ -118,6 +121,15 @@ Règles à respecter :
 5. Utilise un formatage Markdown propre (puces, gras) pour faciliter la lecture, et rajoute quelques emojis pertinents.
 6. Si tu ne trouves pas la réponse dans le contexte, dis-le honnêtement.
 7. Sois concis. Ne répète pas tout le contexte, réponds de façon ciblée à la question posée.
+8. IMPORTANTE NOUVELLE FONCTIONNALITÉ: Si l'utilisateur demande de *créer* ou *générer* des tâches (par exemple: "je veux 5 tâches", "crée des tâches"), tu DOIS répondre EXACTEMENT avec ce format JSON strict (et rien d'autre) dans un bloc ```json :
+```json
+[
+  {{"nom": "Nom de la tâche", "statut": "To Do", "priority": "Medium", "assignee_id": null}}
+]
+```
+Les statuts possibles sont : "To Do", "In Progress", "Blocked", "Done". Les priorités possibles sont : "Low", "Medium", "High". Si aucun utilisateur n'est spécifié, laisse `assignee_id` à null ou mets l'ID d'un utilisateur du contexte si pertinent.
+Ne mets pas de blabla supplémentaire si tu génères des tâches, donne juste le bloc JSON.
+Si ce n'est pas une demande de création, réponds normalement en texte.
 """
 
     try:
@@ -126,11 +138,54 @@ Règles à respecter :
         prompt = f"{system_instruction}\n\nQuestion de l'utilisateur : {chat.message}"
         
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-1.5-flash',
             contents=prompt,
         )
         
-        return {"response": response.text.strip()}
+        response_text = response.text.strip()
+        
+        # Check if the response contains JSON for tasks
+        json_match = re.search(r"```json\s*\n(.*?)\n\s*```", response_text, re.DOTALL)
+        if json_match and chat.project_id:
+            try:
+                tasks_data = json.loads(json_match.group(1))
+                created_count = 0
+                for t_data in tasks_data:
+                    new_task = models.Task(
+                        nom=t_data.get("nom", "Tâche IA"),
+                        statut=t_data.get("statut", "To Do"),
+                        priority=t_data.get("priority", "Medium"),
+                        assignee_id=t_data.get("assignee_id"),
+                        project_id=chat.project_id
+                    )
+                    db.add(new_task)
+                    created_count += 1
+                db.commit()
+                return {"response": f"J'ai créé {created_count} nouvelle(s) tâche(s) avec succès ! 🚀"}
+            except Exception as e:
+                db.rollback()
+                print("Erreur de parsing JSON pour les tâches:", e)
+        elif (response_text.startswith('[') and response_text.endswith(']')) and chat.project_id:
+             try:
+                tasks_data = json.loads(response_text)
+                created_count = 0
+                for t_data in tasks_data:
+                    new_task = models.Task(
+                        nom=t_data.get("nom", "Tâche IA"),
+                        statut=t_data.get("statut", "To Do"),
+                        priority=t_data.get("priority", "Medium"),
+                        assignee_id=t_data.get("assignee_id"),
+                        project_id=chat.project_id
+                    )
+                    db.add(new_task)
+                    created_count += 1
+                db.commit()
+                return {"response": f"J'ai créé {created_count} nouvelle(s) tâche(s) avec succès ! 🚀"}
+             except Exception as e:
+                db.rollback()
+                print("Erreur de parsing JSON brut pour les tâches:", e)
+
+        return {"response": response_text}
     except Exception as e:
         print("Erreur Gemini (Chatbot):", e)
         raise HTTPException(status_code=500, detail="Erreur de connexion avec l'IA. Vérifiez votre clé API.")
