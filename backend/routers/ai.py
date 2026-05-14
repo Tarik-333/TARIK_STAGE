@@ -138,7 +138,7 @@ Si ce n'est pas une demande de création, réponds normalement en texte.
         prompt = f"{system_instruction}\n\nQuestion de l'utilisateur : {chat.message}"
         
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.5-flash',
             contents=prompt,
         )
         
