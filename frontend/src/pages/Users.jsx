@@ -207,10 +207,12 @@ const Users = () => {
       {/* ===== Members Network ===== */}
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
         {filteredUsers.map((u) => (
-          <div key={u.id} className="card-premium group flex flex-col p-8 hover:shadow-soft-lg transition-all duration-500 relative overflow-hidden bg-white dark:bg-[#0f172a]">
+          <div key={u.id} className="card-premium group flex flex-col p-8 hover:shadow-soft-lg transition-all duration-500 relative bg-white dark:bg-[#0f172a]">
             {u.role === 'admin' && (
-              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-bl-full flex items-center justify-center pl-8 pb-8">
-                 <Sparkles size={16} className="text-blue-200" />
+              <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-[2rem]">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-bl-full flex items-center justify-center pl-8 pb-8">
+                   <Sparkles size={16} className="text-blue-200" />
+                </div>
               </div>
             )}
             
