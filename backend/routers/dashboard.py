@@ -13,7 +13,7 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 @router.get("/stats", response_model=schemas.DashboardResponse)
 def get_dashboard_stats(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     # 1. Base query for projects and tasks based on role
-    if current_user.role == "admin":
+    if current_user.role in ["admin", "manager"]:
         projects_query = db.query(models.Project)
         tasks_query = db.query(models.Task)
         users_count = db.query(models.User).count()
@@ -43,7 +43,7 @@ def get_dashboard_stats(db: Session = Depends(get_db), current_user: models.User
     # 1.5 Fetch specific tasks based on role
     my_tasks = []
     blocked_tasks = []
-    if current_user.role == "admin":
+    if current_user.role in ["admin", "manager"]:
         blocked_tasks = db.query(models.Task).filter(models.Task.statut == "Blocked").order_by(models.Task.created_at.desc()).limit(5).all()
     else:
         my_tasks = db.query(models.Task).filter(
@@ -68,8 +68,8 @@ def get_dashboard_stats(db: Session = Depends(get_db), current_user: models.User
     distribution = [schemas.StatusDistribution(name=k, value=v) for k, v in status_counts.items() if v > 0]
 
     # 4. Member Workload (Top 5)
-    # If Admin: Global view. If Employee: Personal context (who else is busy in my projects?)
-    if current_user.role == "admin":
+    # If Admin/Manager: Global view. If Employee: Personal context (who else is busy in my projects?)
+    if current_user.role in ["admin", "manager"]:
         workload_tasks = db.query(models.Task).filter(models.Task.statut != "Done").all()
     else:
         # For employee dashboard, show workload of their team members in common projects

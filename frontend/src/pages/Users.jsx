@@ -41,9 +41,8 @@ const Users = () => {
     }
   };
 
-  const handleUpdateRole = async (userId, currentRole) => {
+  const handleUpdateRole = async (userId, newRole) => {
     try {
-      const newRole = currentRole === 'admin' ? 'employe' : 'admin';
       await api.put(`/auth/users/${userId}/role?new_role=${newRole}`);
       toast.success('Niveau d\'accès mis à jour');
       fetchUsers();
@@ -125,13 +124,22 @@ const Users = () => {
             <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{users.filter(u => u.role === 'admin').length}</p>
           </div>
         </div>
-        <div className="card p-8 flex items-center gap-6 hover:border-slate-300 transition-all group">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-500 transition-transform group-hover:scale-110">
+        <div className="card p-8 flex items-center gap-6 hover:border-purple-200 transition-all group">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-50 dark:bg-purple-900/20 text-purple-600 transition-transform group-hover:scale-110">
             <Shield size={26} />
           </div>
           <div>
-            <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Opérationnels</p>
-            <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{users.filter(u => u.role !== 'admin').length}</p>
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Managers</p>
+            <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{users.filter(u => u.role === 'manager').length}</p>
+          </div>
+        </div>
+        <div className="card p-8 flex items-center gap-6 hover:border-slate-300 transition-all group">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-500 transition-transform group-hover:scale-110">
+            <User size={26} />
+          </div>
+          <div>
+            <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.15em]">Employés</p>
+            <p className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{users.filter(u => u.role === 'employe').length}</p>
           </div>
         </div>
       </div>
@@ -161,24 +169,24 @@ const Users = () => {
 
             <div className="flex items-center justify-between mb-8 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Niveau d'accès</span>
-               <span className={`badge px-3 py-1 rounded-xl text-[10px] font-black ${
-                  u.role === 'admin' 
-                  ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30' 
-                  : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
-               }`}>
-                {u.role === 'admin' ? 'ADMINISTRATEUR' : 'COLLABORATEUR'}
-               </span>
+               <select
+                 value={u.role}
+                 onChange={(e) => handleUpdateRole(u.id, e.target.value)}
+                 disabled={u.id === currentUser.id}
+                 className={`badge px-3 py-1 rounded-xl text-[10px] font-black outline-none cursor-pointer appearance-none text-center ${
+                  u.role === 'admin' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 border border-blue-200' :
+                  u.role === 'manager' ? 'bg-purple-50 text-purple-600 dark:bg-purple-900/30 border border-purple-200' :
+                  'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200'
+                 }`}
+               >
+                 <option value="admin">ADMINISTRATEUR</option>
+                 <option value="manager">MANAGER</option>
+                 <option value="employe">EMPLOYÉ</option>
+               </select>
             </div>
 
             <div className="flex gap-3 mt-auto">
-              <button
-                onClick={() => handleUpdateRole(u.id, u.role)}
-                className={`btn-secondary flex-1 py-3 text-[12px] font-extrabold rounded-xl border-slate-100 dark:border-slate-800 hover:border-blue-500 hover:text-blue-600 transition-all ${u.id === currentUser.id ? 'opacity-30 cursor-not-allowed' : ''}`}
-                disabled={u.id === currentUser.id}
-              >
-                {u.role === 'admin' ? <UserX size={15} className="mr-2" /> : <UserCheck size={15} className="mr-2" />}
-                {u.role === 'admin' ? 'RÉTROGRADER' : 'PROMOUVOIR'}
-              </button>
+              <div className="flex-1"></div>
               <button
                 onClick={() => handleDeleteUser(u.id)}
                 disabled={u.id === currentUser.id}

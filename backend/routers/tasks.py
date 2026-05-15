@@ -32,8 +32,8 @@ def get_tasks(project_id: int, db: Session = Depends(get_db), current_user: mode
         joinedload(models.Task.attachments).joinedload(models.Attachment.uploader)
     ).filter(models.Task.project_id == project_id)
     
-    # "✅ Voir ses tâches assignées"
-    if current_user.role != "admin":
+    # "✅ Voir toutes les tâches pour admin et manager, sinon uniquement les tâches assignées"
+    if current_user.role not in ["admin", "manager"]:
         query = query.filter(models.Task.assignee_id == current_user.id)
             
     return query.order_by(models.Task.id.desc()).all()
@@ -56,8 +56,8 @@ def get_task_detail(task_id: int, db: Session = Depends(get_db), current_user: m
 
 @router.post("/project/{project_id}", response_model=schemas.TaskResponse, status_code=status.HTTP_201_CREATED)
 def create_task(project_id: int, task: schemas.TaskCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Seul un admin peut créer une tâche")
+    if current_user.role not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Seul un admin ou un manager peut créer une tâche")
         
     new_task = models.Task(**task.model_dump(), project_id=project_id)
     db.add(new_task)
@@ -83,7 +83,7 @@ def update_task(task_id: int, task_update: schemas.TaskUpdate, db: Session = Dep
     old_assignee = task.assignee_id
     old_statut = task.statut
     
-    if current_user.role != "admin":
+    if current_user.role not in ["admin", "manager"]:
         # "✅ Modifier statut de ses tâches"
         if task.assignee_id != current_user.id:
             raise HTTPException(status_code=403, detail="Seul l'assigné peut modifier sa tâche")
@@ -129,8 +129,8 @@ def update_task(task_id: int, task_update: schemas.TaskUpdate, db: Session = Dep
 
 @router.delete("/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_task(task_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Seul un admin peut supprimer une tâche")
+    if current_user.role not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Seul un admin ou un manager peut supprimer une tâche")
         
     task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not task:
@@ -210,8 +210,8 @@ def delete_attachment(attachment_id: int, db: Session = Depends(get_db), current
 # --- AI GENERATION ---
 @router.post("/project/{project_id}/generate-ai", status_code=status.HTTP_201_CREATED)
 def generate_tasks_ai(project_id: int, ai_prompt: schemas.AIPrompt, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Seul un admin peut générer des tâches via l'IA")
+    if current_user.role not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Seul un admin ou un manager peut générer des tâches via l'IA")
         
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:

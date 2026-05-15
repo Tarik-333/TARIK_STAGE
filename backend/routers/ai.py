@@ -23,8 +23,8 @@ def chat_with_ai(chat: ChatMessage, db: Session = Depends(get_db), current_user:
     if not api_key:
         raise HTTPException(status_code=500, detail="La clé API Gemini n'est pas configurée (GEMINI_API_KEY).")
 
-    # If admin, fetch all. If employee, fetch their related projects/tasks.
-    if current_user.role == "admin":
+    # If admin/manager, fetch all. If employee, fetch their related projects/tasks.
+    if current_user.role in ["admin", "manager"]:
         projects = db.query(models.Project).all()
         tasks = db.query(models.Task).all()
         users = db.query(models.User).all()
@@ -100,7 +100,7 @@ def chat_with_ai(chat: ChatMessage, db: Session = Depends(get_db), current_user:
 
     context_str += "\nUTILISATEURS (contexte limité):\n"
     for u in users:
-        if current_user.role == "admin":
+        if current_user.role in ["admin", "manager"]:
             context_str += f"- ID: {u.id}, Nom: {u.nom}, Role: {u.role}\n"
         else:
             # For employees, do not expose roles or full directory of users

@@ -11,7 +11,7 @@ router = APIRouter(prefix="/projects", tags=["Projects"])
 @router.get("", response_model=List[schemas.ProjectResponse])
 def get_projects(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     try:
-        if current_user.role == "admin":
+        if current_user.role in ["admin", "manager"]:
             projects = db.query(models.Project).all()
         else:
             # Employé logic
@@ -49,8 +49,8 @@ def get_project(project_id: int, db: Session = Depends(get_db), current_user: mo
 
 @router.post("", response_model=schemas.ProjectResponse, status_code=status.HTTP_201_CREATED)
 def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Seul un admin peut créer un projet")
+    if current_user.role not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Seul un admin ou un manager peut créer un projet")
         
     new_project = models.Project(**project.model_dump(), user_id=current_user.id)
     db.add(new_project)
@@ -60,8 +60,8 @@ def create_project(project: schemas.ProjectCreate, db: Session = Depends(get_db)
 
 @router.put("/{project_id}", response_model=schemas.ProjectResponse)
 def update_project(project_id: int, project_update: schemas.ProjectCreate, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Seul un admin peut modifier un projet")
+    if current_user.role not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Seul un admin ou un manager peut modifier un projet")
         
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:
@@ -76,8 +76,8 @@ def update_project(project_id: int, project_update: schemas.ProjectCreate, db: S
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project(project_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Seul un admin peut supprimer un projet")
+    if current_user.role not in ["admin", "manager"]:
+        raise HTTPException(status_code=403, detail="Seul un admin ou un manager peut supprimer un projet")
         
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
     if not project:

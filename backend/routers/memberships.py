@@ -19,7 +19,7 @@ def _ensure_project(db: Session, project_id: int) -> models.Project:
 
 
 def _require_owner_or_admin(project: models.Project, current_user: models.User):
-    if current_user.role == "admin":
+    if current_user.role in ["admin", "manager"]:
         return
     if project.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Non autorisé")
