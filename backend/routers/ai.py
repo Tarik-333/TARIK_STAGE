@@ -144,11 +144,15 @@ Si ce n'est pas une demande de création, réponds normalement en texte.
         
         response_text = response.text.strip()
         
-        # Check if the response contains JSON for tasks
-        json_match = re.search(r"```json\s*\n(.*?)\n\s*```", response_text, re.DOTALL)
-        if json_match and chat.project_id:
+        # Essayer d'extraire un bloc JSON
+        json_str = response_text
+        match = re.search(r"```(?:json)?\s*(.*?)\s*```", response_text, re.DOTALL | re.IGNORECASE)
+        if match:
+            json_str = match.group(1).strip()
+            
+        if json_str.startswith('[') and json_str.endswith(']') and chat.project_id:
             try:
-                tasks_data = json.loads(json_match.group(1))
+                tasks_data = json.loads(json_str)
                 created_count = 0
                 for t_data in tasks_data:
                     new_task = models.Task(
@@ -165,25 +169,6 @@ Si ce n'est pas une demande de création, réponds normalement en texte.
             except Exception as e:
                 db.rollback()
                 print("Erreur de parsing JSON pour les tâches:", e)
-        elif (response_text.startswith('[') and response_text.endswith(']')) and chat.project_id:
-             try:
-                tasks_data = json.loads(response_text)
-                created_count = 0
-                for t_data in tasks_data:
-                    new_task = models.Task(
-                        nom=t_data.get("nom", "Tâche IA"),
-                        statut=t_data.get("statut", "To Do"),
-                        priority=t_data.get("priority", "Medium"),
-                        assignee_id=t_data.get("assignee_id"),
-                        project_id=chat.project_id
-                    )
-                    db.add(new_task)
-                    created_count += 1
-                db.commit()
-                return {"response": f"J'ai créé {created_count} nouvelle(s) tâche(s) avec succès ! 🚀"}
-             except Exception as e:
-                db.rollback()
-                print("Erreur de parsing JSON brut pour les tâches:", e)
 
         return {"response": response_text}
     except Exception as e:
