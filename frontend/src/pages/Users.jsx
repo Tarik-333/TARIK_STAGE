@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import {
   Users as UsersIcon, Trash2, Shield, User,
-  Search, UserCheck, UserX, Mail, Crown, ChevronRight, UserPlus, Sparkles
+  Search, UserCheck, UserX, Mail, Crown, ChevronRight, ChevronDown, UserPlus, Sparkles
 } from 'lucide-react';
 import { AuthContext } from '../context/AuthContext';
 import toast from 'react-hot-toast';
@@ -20,6 +20,66 @@ const getInitials = (name) => {
 const getAvatarColor = (name = '') => {
   const code = name.charCodeAt(0) || 0;
   return AVATAR_COLORS[code % AVATAR_COLORS.length];
+};
+
+const RoleDropdown = ({ currentRole, onUpdate, disabled }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const roles = [
+    { value: 'admin', label: 'ADMINISTRATEUR', color: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50' },
+    { value: 'manager', label: 'MANAGER', color: 'bg-purple-50 text-purple-600 dark:bg-purple-900/30 border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/50' },
+    { value: 'employe', label: 'EMPLOYÉ', color: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700' }
+  ];
+
+  const selected = roles.find(r => r.value === currentRole) || roles[2];
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button 
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        disabled={disabled}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black outline-none border transition-colors ${selected.color} ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+      >
+        {selected.label}
+        {!disabled && <ChevronDown size={12} className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />}
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-slate-800 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] border border-slate-100 dark:border-slate-700 overflow-hidden z-20 animate-in fade-in zoom-in-95 duration-200">
+          <div className="p-1.5 flex flex-col gap-1">
+              {roles.map(r => (
+                <button
+                  key={r.value}
+                  onClick={() => {
+                    onUpdate(r.value);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between ${
+                    currentRole === r.value 
+                    ? 'bg-slate-50 dark:bg-slate-700/50 text-blue-600 dark:text-blue-400' 
+                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {r.label}
+                  {currentRole === r.value && <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>}
+                </button>
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 const Users = () => {
@@ -169,20 +229,11 @@ const Users = () => {
 
             <div className="flex items-center justify-between mb-8 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">Niveau d'accès</span>
-               <select
-                 value={u.role}
-                 onChange={(e) => handleUpdateRole(u.id, e.target.value)}
-                 disabled={u.id === currentUser.id}
-                 className={`badge px-3 py-1 rounded-xl text-[10px] font-black outline-none cursor-pointer appearance-none text-center ${
-                  u.role === 'admin' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 border border-blue-200' :
-                  u.role === 'manager' ? 'bg-purple-50 text-purple-600 dark:bg-purple-900/30 border border-purple-200' :
-                  'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200'
-                 }`}
-               >
-                 <option value="admin">ADMINISTRATEUR</option>
-                 <option value="manager">MANAGER</option>
-                 <option value="employe">EMPLOYÉ</option>
-               </select>
+               <RoleDropdown 
+                  currentRole={u.role}
+                  onUpdate={(newRole) => handleUpdateRole(u.id, newRole)}
+                  disabled={u.id === currentUser.id}
+               />
             </div>
 
             <div className="flex gap-3 mt-auto">
